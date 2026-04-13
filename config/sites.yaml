@@ -1,0 +1,196 @@
+sites:
+  # Aluguel
+  - name: dois_irmaos
+    url: https://www.imobiliariadoisirmaos.com.br/imoveis/para-alugar
+    platform: kenlo
+    transaction_type: aluguel
+    active: true
+    max_pages: 20
+
+  - name: sao_miguel
+    url: https://www.saomiguelimobiliaria.com.br/imoveis/para-locacao
+    platform: kenlo
+    transaction_type: aluguel
+    active: true
+
+  - name: becker
+    url: https://www.empreendimentosbecker.com.br/Imoveis/Busca/1/0?carteira=L&tipo%5B%5D=3&tipo%5B%5D=9&tipo%5B%5D=78&tipo%5B%5D=76&tipo%5B%5D=14&tipo%5B%5D=1&tipo%5B%5D=71&tipo%5B%5D=82&cidade=8&dormitorios=0&garagem=0&valor_l=0&valor_v=0&area=0&codigo=
+    platform: kenlo
+    transaction_type: aluguel
+    active: true
+
+  - name: felippe_alfredo
+    url: https://www.felippealfredoimobiliaria.com.br/alugar/apartamento?ordenacao=%22mais-recente%22&pagina=1&tipos=%22apartamento%2Ccasa%22&transacao=%22alugar%22
+    platform: jetimob
+    transaction_type: aluguel
+    active: true
+
+  - name: adriana
+    url: https://www.adrianacorretoradeimoveis.com.br/imoveis/tipo-apartamento,apartamento-terreo,casa,sobrado/cidade-dois-irmaos,morro-reuter/transacao-locacao/ordenacao-newest
+    platform: kenlo
+    transaction_type: aluguel
+    active: true
+
+  - name: investir
+    url: https://www.investirimoveisdi.com.br/busca/alugar/cidade/todas/categoria/apartamento_casa-sobrado_terrenos/data/desc/1/
+    platform: vista
+    transaction_type: aluguel
+    active: true
+
+  - name: habbitar
+    url: https://habbitar.com.br/alugar/imoveis?profile%5B0%5D=1&typeArea=total_area&floorComparision=equals&sort=-is_price_shown%2Cby_calculated_price&offset=1&limit=21
+    platform: jetimob
+    transaction_type: aluguel
+    active: true
+
+  - name: lis
+    url: https://www.imobiliarialis.com.br/imoveis/para-alugar?ordenar=recentes
+    platform: kenlo
+    transaction_type: aluguel
+    active: true
+
+  - name: identita
+    url: https://www.identitaimoveis.com.br/imovel/locacao/todos/dois-irmaos
+    platform: kenlo
+    transaction_type: aluguel
+    active: true
+
+  - name: platano
+    url: https://www.platanoimoveis.com.br/imoveis/cidade-dois-irmaos,morro-reuter/transacao-locacao
+    platform: kenlo
+    transaction_type: aluguel
+    active: true
+
+  - name: joel_blume
+    url: https://www.joelblumecorretor.com.br/imoveis/para-alugar/todos/dois-irmaos/
+    platform: kenlo
+    transaction_type: aluguel
+    active: true
+
+  - name: conecta_aluguel
+    url: https://www.conectaimoveisdi.com.br/imoveis/aluguel/dois-irmaos/-/-/-?filtros&pagination=1
+    platform: kenlo
+    transaction_type: aluguel
+    active: true
+
+  # Compra
+  - name: dois_irmaos_compra
+    url: https://www.imobiliariadoisirmaos.com.br/imoveis/a-venda/casa/dois-irmaos?quartos=2+
+    platform: kenlo
+    transaction_type: compra
+    active: true
+    max_pages: 20
+
+  - name: sao_miguel_compra
+    url: https://www.saomiguelimobiliaria.com.br/imoveis/?disponibilidade=a-venda&categoria=casa&cidade=dois-irmaos&bairro=&area-min=&area-max=&finalidade=Residencial&quartos=2&order=padrao
+    platform: kenlo
+    transaction_type: compra
+    active: true
+
+  - name: becker_compra
+    url: https://www.empreendimentosbecker.com.br/Imoveis/Busca/1/0?carteira=V&tipo%5B%5D=1&tipo%5B%5D=71&cidade=8&dormitorios=0&garagem=0&valor_l=0&valor_v=0&area=0&codigo=
+    platform: kenlo
+    transaction_type: compra
+    active: true
+
+  - name: felippe_alfredo_compra
+    url: https://www.felippealfredoimobiliaria.com.br/venda/rio-grande-do-sul/dois-irmaos/casa/com-mais-de-5-quartos?tipos=%22casa%22&quartos=%223%2C4%2C5%2C2%22&ordenacao=%22mais-recente%22&pagina=1&transacao=%22venda%22&endereco=%5B%7B%22label%22%3A%22Dois+Irm%C3%A3os+-+RS%22%2C%22valor%22%3A%7B%22cidade%22%3A7650%2C%22estado%22%3A23%7D%2C%22cidade%22%3A%22dois-irmaos%22%2C%22estado%22%3A%22rio-grande-do-sul%22%7D%5D
+    platform: jetimob
+    transaction_type: compra
+    active: true
+
+  - name: investir_compra
+    url: https://www.investirimoveisdi.com.br/busca/comprar/cidade/todas/bairros/beira-rio-dois-irmaos_bela-vista-dois-irmaos_centro-dois-irmaos_floresta-dois-irmaos_industrial-dois-irmaos_moinho-velho-dois-irmaos_primavera-dois-irmaos_sao-joao-dois-irmaos_sete-de-setembro-dois-irmaos_travessao-dois-irmaos_uniao-dois-irmaos_vale-direito-dois-irmaos_vale-esquerdo-dois-irmaos_vale-verde-dois-irmaos_centro-morro-reuter_planalto-morro-reuter/categoria/casa-sobrado/quartos/2/1/
+    platform: vista
+    transaction_type: compra
+    active: true
+
+  - name: habbitar_compra
+    url: https://habbitar.com.br/comprar/casa/dois-irmaos-rs?by_type_slug=casa&typeArea=built_area&floorComparision=equals&bedrooms=2&profile%5B0%5D=1&sort=-created_at%2Cid&offset=1&limit=100
+    platform: jetimob
+    transaction_type: compra
+    active: true
+
+  - name: lis_compra
+    url: https://www.imobiliarialis.com.br/imoveis/a-venda/casa+chacara?quartos=2+&preco-de-venda=0~1500000
+    platform: kenlo
+    transaction_type: compra
+    active: true
+
+  - name: adriana_compra
+    url: https://www.adrianacorretoradeimoveis.com.br/imoveis/tipo-casa,sitio-chacara/cidade-dois-irmaos,morro-reuter/transacao-venda/preco-max-1500000/ordenacao-newest
+    platform: kenlo
+    transaction_type: compra
+    active: true
+
+  - name: identita_compra
+    url: https://www.identitaimoveis.com.br/imovel/venda/casa-sobrado/dois-irmaos/?&dormitorios=22&suites=&banheiros=&vagas=&vmi=&vma=venda0&areaMinima=venda1&areaMaxima=venda2&pag=1
+    platform: kenlo
+    transaction_type: compra
+    active: true
+
+  - name: platano_compra
+    url: https://www.platanoimoveis.com.br/imoveis/cidade-dois-irmaos/tipo-casa,casa-em-condominio,chacara-sitio/transacao-venda
+    platform: kenlo
+    transaction_type: compra
+    active: true
+
+  - name: joel_blume_compra
+    url: https://www.joelblumecorretor.com.br/imoveis/?disponibilidade=a-venda&categoria=casa&cidade=dois-irmaos&bairro=&area-min=&area-max=&finalidade=&quartos=3&order=padr%C3%A3o
+    platform: kenlo
+    transaction_type: compra
+    active: true
+
+  - name: conecta_compra
+    url: https://www.conectaimoveisdi.com.br/imoveis/venda/dois-irmaos/-/-/casa?filtros&min=0&max=4600000&ordem=desc-inclusao&pagination=1
+    platform: kenlo
+    transaction_type: compra
+    active: true
+
+  - name: dmk_compra
+    url: https://www.dmkimoveis.com.br/venda/casa+chacara/dois-irmaos/?&pagina=1
+    platform: jetimob
+    transaction_type: compra
+    active: true
+
+  - name: dapper_compra
+    url: https://www.dapperimoveis.com.br/imoveis/vendas#tipo_negociacao=2&tipo_imovel=54,62,59&cidade=Dois%20Irm%C3%A3os&valor_ate=1500000&currentPage=1&ordem=2
+    platform: kenlo
+    transaction_type: compra
+    active: true
+
+  - name: munique_compra
+    url: https://www.muniqueimoveis.com.br/busca?finalidade=venda&categorias%5B%5D=1&categorias%5B%5D=20&categorias%5B%5D=26&cidades%5B%5D=73&maxPreco=1500000
+    platform: kenlo
+    transaction_type: compra
+    active: true
+
+  - name: postai_compra
+    url: https://www.postaiimoveis.com.br/imoveis/tipo=casa-em-condominio,casas-e-sobrados&transacao=vendas&termo=Dois%20Irm%C3%A3os
+    platform: tecimob
+    transaction_type: compra
+    active: true
+
+  - name: confianca_compra
+    url: https://confiancadimoveis.com.br/imoveis/tipo=casas-e-sobrados%26transacao=venda%26cidade=10-dois-irmos%26valor_maximo=1500000.00/1/sort=menor-valor
+    platform: kenlo
+    transaction_type: compra
+    active: true
+
+  - name: confianca2_compra
+    url: https://confiancadimoveis.com.br/imoveis/tipo=chacaras-fazendas-e-sitios%26transacao=venda%26cidade=10-dois-irmos%26valor_maximo=1500000/1/sort=menor-valor
+    platform: kenlo
+    transaction_type: compra
+    active: true
+
+  - name: larissa_compra
+    url: https://www.larissadillimoveis.com.br/imoveis/venda/dois-irmaos/-/-/casa
+    platform: kenlo
+    transaction_type: compra
+    active: true
+
+  - name: conecta_compra_morro_reuter
+    url: https://www.conectaimoveisdi.com.br/imoveis/venda/morro-reuter/-/-/casa?filtros&min=0&max=4600000&ordem=desc-inclusao&pagination=1
+    platform: kenlo
+    transaction_type: compra
+    active: true

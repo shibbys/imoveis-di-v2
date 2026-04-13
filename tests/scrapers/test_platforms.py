@@ -77,3 +77,34 @@ def test_kenlo_category_from_title():
     props = scraper._parse_page(soup, "https://example.com")
     assert props[0].category == "Casa"
     assert props[1].category == "Apartamento"
+
+
+from scrapers.registry import get_scraper, PLATFORM_MAP
+from scrapers.platforms.vista import VistaScraper
+
+
+def test_registry_returns_correct_class():
+    site = {"name": "test", "url": "https://x.com", "platform": "vista", "transaction_type": "aluguel"}
+    scraper = get_scraper(site)
+    assert isinstance(scraper, VistaScraper)
+
+
+def test_registry_defaults_to_kenlo_for_unknown_platform():
+    site = {"name": "test", "url": "https://x.com", "platform": "unknown", "transaction_type": "compra"}
+    scraper = get_scraper(site)
+    assert isinstance(scraper, KenloScraper)
+
+
+def test_registry_passes_config_to_scraper():
+    site = {
+        "name": "minha_imobiliaria",
+        "url": "https://x.com",
+        "platform": "kenlo",
+        "transaction_type": "aluguel",
+        "max_pages": 10,
+        "delay_seconds": 1.5,
+    }
+    scraper = get_scraper(site)
+    assert scraper.site_name == "minha_imobiliaria"
+    assert scraper.max_pages == 10
+    assert scraper.delay_seconds == 1.5
