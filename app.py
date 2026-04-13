@@ -1,4 +1,11 @@
 import os
+import sys
+
+# Windows requires ProactorEventLoop for subprocess support (Playwright)
+if sys.platform == "win32":
+    import asyncio
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from fastapi import FastAPI
