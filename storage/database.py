@@ -271,6 +271,8 @@ def get_last_activity(conn: sqlite3.Connection, imovel_id: str):
 # ── Review banner ─────────────────────────────────────────────────────────────
 
 def get_changes_since_review(conn: sqlite3.Connection, transaction_type: str) -> dict:
+    if transaction_type not in ("aluguel", "compra"):
+        raise ValueError(f"Invalid transaction_type: {transaction_type!r}")
     col = f"last_reviewed_{transaction_type}_at"
     ws = conn.execute(f"SELECT {col} FROM workspace WHERE id=1").fetchone()
     since = ws[0] if ws and ws[0] else "1970-01-01"
@@ -285,6 +287,8 @@ def get_changes_since_review(conn: sqlite3.Connection, transaction_type: str) ->
 
 
 def mark_reviewed(conn: sqlite3.Connection, transaction_type: str) -> None:
+    if transaction_type not in ("aluguel", "compra"):
+        raise ValueError(f"Invalid transaction_type: {transaction_type!r}")
     from datetime import datetime, timezone
     col = f"last_reviewed_{transaction_type}_at"
     now = datetime.now(timezone.utc).isoformat()

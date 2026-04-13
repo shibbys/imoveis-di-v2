@@ -45,8 +45,7 @@ def _listing_page(request: Request, tipo: str):
     options = _filter_options(conn, tipo)
     conn.close()
     template = "aluguel.html" if tipo == "aluguel" else "compra.html"
-    return templates.TemplateResponse(template, {
-        "request": request,
+    return templates.TemplateResponse(request, template, {
         "active_tab": tipo,
         "tipo": tipo,
         "username": request.session.get("username"),
@@ -86,8 +85,7 @@ async def mapa(request: Request):
                 tooltip=f'{im["source_site"]} — {price_str}',
                 icon=folium.Icon(color=color)
             ).add_to(m)
-    return templates.TemplateResponse("mapa.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "mapa.html", {
         "active_tab": "mapa",
         "username": request.session.get("username"),
         "map_html": m._repr_html_(),
@@ -108,8 +106,7 @@ async def historico(request: Request):
         sites = json.loads(d.get("sites_scraped") or "[]")
         d["sites_count"] = len(sites)
         runs.append(d)
-    return templates.TemplateResponse("historico.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "historico.html", {
         "active_tab": "historico",
         "username": request.session.get("username"),
         "runs": runs,
@@ -132,8 +129,7 @@ async def partial_imoveis(
     conn = get_connection()
     imoveis = get_imoveis(conn, tipo, site, status, neighborhood, category, price_min, price_max)
     conn.close()
-    return templates.TemplateResponse("partials/_imovel_tabela.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "partials/_imovel_tabela.html", {
         "imoveis": imoveis,
         "tipo": tipo,
         "statuses": STATUSES,
@@ -157,8 +153,7 @@ async def partial_imovel_detalhe(request: Request, imovel_id: str):
     price_history = get_imovel_price_history(conn, imovel_id)
     last_activity = get_last_activity(conn, imovel_id)
     conn.close()
-    return templates.TemplateResponse("partials/_imovel_detalhe.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "partials/_imovel_detalhe.html", {
         "imovel": imovel,
         "images": images,
         "price_history": price_history,
@@ -184,8 +179,7 @@ async def partial_update_status(request: Request, imovel_id: str):
     conn.commit()
     imovel = get_imovel(conn, imovel_id)
     conn.close()
-    return templates.TemplateResponse("partials/_imovel_linha.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "partials/_imovel_linha.html", {
         "imovel": imovel,
         "statuses": STATUSES,
     })
@@ -198,8 +192,7 @@ async def partial_edit_get(request: Request, imovel_id: str):
     conn = get_connection()
     imovel = get_imovel(conn, imovel_id)
     conn.close()
-    return templates.TemplateResponse("partials/_imovel_modal_editar.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "partials/_imovel_modal_editar.html", {
         "imovel": imovel,
         "statuses": STATUSES,
     })
@@ -247,8 +240,7 @@ async def partial_edit_post(request: Request, imovel_id: str):
     price_history = get_imovel_price_history(conn, imovel_id)
     last_activity_row = get_last_activity(conn, imovel_id)
     conn.close()
-    return templates.TemplateResponse("partials/_imovel_detalhe.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "partials/_imovel_detalhe.html", {
         "imovel": imovel,
         "images": images,
         "price_history": price_history,

@@ -28,8 +28,7 @@ async def configuracoes_get(request: Request):
     conn = get_connection()
     ws = get_workspace(conn)
     conn.close()
-    return templates.TemplateResponse("configuracoes.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "configuracoes.html", {
         "active_tab": "configuracoes",
         "username": request.session.get("username"),
         "workspace": ws,
