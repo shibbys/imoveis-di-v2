@@ -153,7 +153,6 @@ def get_imovel_images(conn: sqlite3.Connection, imovel_id: str) -> list:
 
 def update_imovel_status(conn: sqlite3.Connection, imovel_id: str, status: str) -> None:
     conn.execute("UPDATE imoveis SET status = ? WHERE id = ?", [status, imovel_id])
-    conn.commit()
 
 
 def update_imovel_fields(conn: sqlite3.Connection, imovel_id: str,
@@ -163,7 +162,6 @@ def update_imovel_fields(conn: sqlite3.Connection, imovel_id: str,
         "UPDATE imoveis SET address=?, comments=?, lat=?, lng=? WHERE id=?",
         [address, comments, lat, lng, imovel_id]
     )
-    conn.commit()
 
 
 def get_imovel_price_history(conn: sqlite3.Connection, imovel_id: str) -> list:
@@ -196,7 +194,6 @@ def log_activity(conn: sqlite3.Connection, imovel_id: str, user_id: int,
         "VALUES (?,?,?,?,?,?)",
         [imovel_id, user_id, datetime.now(timezone.utc).isoformat(), field, old_value, new_value]
     )
-    conn.commit()
 
 
 def get_last_activity(conn: sqlite3.Connection, imovel_id: str):
@@ -229,7 +226,6 @@ def mark_reviewed(conn: sqlite3.Connection, transaction_type: str) -> None:
     col = f"last_reviewed_{transaction_type}_at"
     now = datetime.now(timezone.utc).isoformat()
     conn.execute(f"UPDATE workspace SET {col} = ? WHERE id = 1", [now])
-    conn.commit()
 
 
 # ── Workspace / runs ──────────────────────────────────────────────────────────
@@ -240,7 +236,6 @@ def get_workspace(conn: sqlite3.Connection):
 
 def update_schedule(conn: sqlite3.Connection, schedule: str) -> None:
     conn.execute("UPDATE workspace SET scraping_schedule=? WHERE id=1", [schedule])
-    conn.commit()
 
 
 def get_runs(conn: sqlite3.Connection, limit: int = 50) -> list:
@@ -265,4 +260,3 @@ def create_user(conn: sqlite3.Connection, username: str, password_hash: str) -> 
         "INSERT INTO users (username, password_hash, created_at) VALUES (?,?,?)",
         [username, password_hash, datetime.now(timezone.utc).isoformat()]
     )
-    conn.commit()
