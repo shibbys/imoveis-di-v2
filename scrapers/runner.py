@@ -1,8 +1,10 @@
 import asyncio
 import json
+import sys
+import threading
 import uuid
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Callable, Optional
 
 import yaml
 from scrapers.base import PropertyData
@@ -126,38 +128,19 @@ def build_run_log_line(site_name: str, found: int, new: int,
     return f"[{now}] {site_name} → {found} encontrados, {', '.join(parts)}"
 
 
-async def run_scraping(sites_config: Optional[list] = None) -> None:
+async def _scraping_body(
+    put_event: Callable[[str], None],
+    conn,
+    run_id: str,
+    sites_config: list,
+    start_time,
+) -> None:
     """
-    Main scraping orchestrator. Loads sites from sites.yaml if not provided.
-    Streams log lines to the global event queue.
-    Updates the runs table on start and completion.
+    Core scraping logic. Decoupled from the event queue so it can run in any
+    event loop (including a dedicated ProactorEventLoop thread on Windows).
+    put_event() is a sync callback — call it instead of await queue.put().
     """
     global _running
-    if _running:
-        return
-    _running = True
-
-    queue = get_event_queue()
-    run_id = (
-        datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-        + "_" + uuid.uuid4().hex[:6]
-    )
-    start_time = datetime.now(timezone.utc)
-
-    # Load sites
-    if sites_config is None:
-        with open("config/sites.yaml") as f:
-            data = yaml.safe_load(f)
-        sites_config = [s for s in data.get("sites", []) if s.get("active", True)]
-
-    conn = get_connection()
-
-    # Create run record
-    conn.execute(
-        "INSERT INTO runs (run_id, run_date, sites_scraped, status) VALUES (?,?,?,'running')",
-        [run_id, start_time.isoformat(), json.dumps([s["name"] for s in sites_config])]
-    )
-    conn.commit()
 
     total_new = 0
     total_updated = 0
@@ -229,7 +212,7 @@ async def run_scraping(sites_config: Optional[list] = None) -> None:
                 error=error_msg,
             )
             log_lines.append(line)
-            await queue.put(line)
+            put_event(line)
 
     finally:
         duration = (datetime.now(timezone.utc) - start_time).total_seconds()
@@ -240,8 +223,8 @@ async def run_scraping(sites_config: Optional[list] = None) -> None:
             f"{total_updated} atualizados, {total_removed} removidos ({duration:.0f}s)"
         )
         log_lines.append(summary)
-        await queue.put(summary)
-        await queue.put("__DONE__")
+        put_event(summary)
+        put_event("__DONE__")
 
         if error_count == len(sites_config):
             final_status = "failed"
@@ -260,3 +243,60 @@ async def run_scraping(sites_config: Optional[list] = None) -> None:
         conn.commit()
         conn.close()
         _running = False
+
+
+async def run_scraping(sites_config: Optional[list] = None) -> None:
+    """
+    Main scraping orchestrator. Loads sites from sites.yaml if not provided.
+    Streams log lines to the global event queue.
+
+    On Windows, uvicorn may run SelectorEventLoop which blocks Playwright's
+    subprocess creation. The workaround: run _scraping_body in a daemon thread
+    with a dedicated ProactorEventLoop, pushing events back to the main loop
+    via call_soon_threadsafe.
+    """
+    global _running
+    if _running:
+        return
+    _running = True
+
+    main_loop = asyncio.get_running_loop()
+    queue = get_event_queue()
+
+    def put_event(item: str) -> None:
+        main_loop.call_soon_threadsafe(queue.put_nowait, item)
+
+    run_id = (
+        datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        + "_" + uuid.uuid4().hex[:6]
+    )
+    start_time = datetime.now(timezone.utc)
+
+    if sites_config is None:
+        with open("config/sites.yaml") as f:
+            data = yaml.safe_load(f)
+        sites_config = [s for s in data.get("sites", []) if s.get("active", True)]
+
+    conn = get_connection()
+    conn.execute(
+        "INSERT INTO runs (run_id, run_date, sites_scraped, status) VALUES (?,?,?,'running')",
+        [run_id, start_time.isoformat(), json.dumps([s["name"] for s in sites_config])]
+    )
+    conn.commit()
+
+    if sys.platform == "win32":
+        # Windows: spawn a thread with its own ProactorEventLoop so Playwright
+        # can create subprocesses. Events are sent back via call_soon_threadsafe.
+        def _thread() -> None:
+            loop = asyncio.ProactorEventLoop()
+            asyncio.set_event_loop(loop)
+            try:
+                loop.run_until_complete(
+                    _scraping_body(put_event, conn, run_id, sites_config, start_time)
+                )
+            finally:
+                loop.close()
+
+        threading.Thread(target=_thread, daemon=True, name="scraping").start()
+    else:
+        await _scraping_body(put_event, conn, run_id, sites_config, start_time)
