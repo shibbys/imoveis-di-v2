@@ -4,9 +4,58 @@ from typing import Optional
 
 _DB_PATH: str = ""
 
+# When _DB_PATH is ":memory:", we keep a single canonical in-memory connection
+# alive.  get_connection(":memory:") always returns this same connection wrapped
+# in a proxy that makes .close() a no-op, so callers (e.g. test fixtures)
+# cannot destroy the shared database by closing their handle.
+_MEMORY_CONN: Optional[sqlite3.Connection] = None
+
+
+class _NoCloseProxy:
+    """Thin proxy around sqlite3.Connection that silences .close() calls.
+
+    All attribute access is forwarded to the underlying connection, which means
+    callers can use it anywhere a sqlite3.Connection is expected (row_factory,
+    execute, executescript, commit, etc.).  The only difference is that
+    .close() is a no-op so the shared in-memory database is not destroyed when
+    individual callers are done with their handle.
+    """
+
+    def __init__(self, conn: sqlite3.Connection) -> None:
+        self._conn = conn
+
+    def close(self) -> None:  # intentional no-op
+        pass
+
+    def __getattr__(self, name: str):
+        return getattr(self._conn, name)
+
+    # sqlite3.Connection.row_factory is a data descriptor – proxy it explicitly
+    @property
+    def row_factory(self):
+        return self._conn.row_factory
+
+    @row_factory.setter
+    def row_factory(self, value):
+        self._conn.row_factory = value
+
+
+def _get_or_create_memory_conn() -> sqlite3.Connection:
+    global _MEMORY_CONN
+    if _MEMORY_CONN is None:
+        _MEMORY_CONN = sqlite3.connect(":memory:", check_same_thread=False)
+        _MEMORY_CONN.row_factory = sqlite3.Row
+        _MEMORY_CONN.execute("PRAGMA foreign_keys=ON")
+    return _MEMORY_CONN
+
 
 def get_connection(path: Optional[str] = None) -> sqlite3.Connection:
     target = path or _DB_PATH
+    if target == ":memory:":
+        # Return a proxy that forwards everything to the shared connection but
+        # silences .close() calls so the in-memory DB survives between setup
+        # and the actual test requests.
+        return _NoCloseProxy(_get_or_create_memory_conn())  # type: ignore[return-value]
     conn = sqlite3.connect(target, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
@@ -17,9 +66,23 @@ def get_connection(path: Optional[str] = None) -> sqlite3.Connection:
 def init_db(path: str, conn: Optional[sqlite3.Connection] = None) -> None:
     global _DB_PATH
     _DB_PATH = path
-    if path != ":memory:" and os.path.dirname(path):
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-    c = conn or get_connection(path)
+    if path == ":memory:":
+        # Always use the canonical shared in-memory connection.
+        # get_connection(":memory:") returns _MEMORY_CONN, so when the caller
+        # passes conn=get_connection(":memory:"), conn IS _MEMORY_CONN.
+        c = _get_or_create_memory_conn()
+        # Drop all existing tables so each init_db call starts from a clean
+        # slate (test isolation).
+        c.execute("PRAGMA foreign_keys=OFF")
+        for tbl in ("activity_log", "users", "workspace", "runs",
+                    "historico", "imovel_imagens", "imoveis"):
+            c.execute(f"DROP TABLE IF EXISTS {tbl}")
+        c.commit()
+        c.execute("PRAGMA foreign_keys=ON")
+    else:
+        if os.path.dirname(path):
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+        c = conn if conn is not None else get_connection(path)
     c.executescript("""
         CREATE TABLE IF NOT EXISTS imoveis (
             id               TEXT PRIMARY KEY,
