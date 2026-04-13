@@ -191,32 +191,34 @@ class KenloScraper(BaseScraper):
         page_num = 0
         async with async_playwright() as pw:
             browser = await pw.chromium.launch(headless=True)
-            ctx = await browser.new_context(
-                user_agent=(
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/120.0.0.0 Safari/537.36"
+            try:
+                ctx = await browser.new_context(
+                    user_agent=(
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/120.0.0.0 Safari/537.36"
+                    )
                 )
-            )
-            page = await ctx.new_page()
-            # Disable webdriver detection
-            await page.add_init_script(
-                "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
-            )
-            while current_url and page_num < self.max_pages:
-                try:
-                    await page.goto(current_url, wait_until="networkidle", timeout=30000)
-                    html = await page.content()
-                    soup = BeautifulSoup(html, "html.parser")
-                    page_results = self._parse_page(soup, current_url)
-                    if not page_results:
+                page = await ctx.new_page()
+                # Disable webdriver detection
+                await page.add_init_script(
+                    "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
+                )
+                while current_url and page_num < self.max_pages:
+                    try:
+                        await page.goto(current_url, wait_until="networkidle", timeout=30000)
+                        html = await page.content()
+                        soup = BeautifulSoup(html, "html.parser")
+                        page_results = self._parse_page(soup, current_url)
+                        if not page_results:
+                            break
+                        results.extend(page_results)
+                        current_url = self._get_next_page_url(soup, current_url)
+                        page_num += 1
+                        if current_url:
+                            await asyncio.sleep(self.delay_seconds)
+                    except Exception:
                         break
-                    results.extend(page_results)
-                    current_url = self._get_next_page_url(soup, current_url)
-                    page_num += 1
-                    if current_url:
-                        await asyncio.sleep(self.delay_seconds)
-                except Exception:
-                    break
-            await browser.close()
+            finally:
+                await browser.close()
         return results
