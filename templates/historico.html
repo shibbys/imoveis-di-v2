@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Histórico — Imoveis DI{% endblock %}
+{% block content %}
+<div class="p-4 max-w-4xl">
+  <h2 class="text-lg font-semibold mb-4">Histórico de Scraping</h2>
+  <table class="w-full text-sm border-collapse">
+    <thead>
+      <tr class="text-left border-b border-gray-200 text-gray-500 text-xs uppercase">
+        <th class="py-2 pr-4">Data</th>
+        <th class="py-2 pr-4">Sites</th>
+        <th class="py-2 pr-4">Encontrados</th>
+        <th class="py-2 pr-4">Novos</th>
+        <th class="py-2 pr-4">Atualizados</th>
+        <th class="py-2 pr-4">Removidos</th>
+        <th class="py-2 pr-4">Duração</th>
+        <th class="py-2">Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for run in runs %}
+      <tr class="border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+          hx-get="/partials/run/{{ run.run_id }}"
+          hx-target="#run-detail"
+          hx-swap="innerHTML">
+        <td class="py-2 pr-4">{{ run.run_date[:16] }}</td>
+        <td class="py-2 pr-4">{{ run.sites_count }}</td>
+        <td class="py-2 pr-4">{{ run.total_found }}</td>
+        <td class="py-2 pr-4 text-green-600 font-medium">{{ run.new_count }}</td>
+        <td class="py-2 pr-4 text-yellow-600">{{ run.updated_count }}</td>
+        <td class="py-2 pr-4 text-red-500">{{ run.removed_count }}</td>
+        <td class="py-2 pr-4 text-gray-500">{{ "%.0f"|format(run.duration_seconds or 0) }}s</td>
+        <td class="py-2">
+          <span class="px-2 py-0.5 rounded text-xs font-medium
+            {% if run.status == 'completed' %}bg-green-100 text-green-700
+            {% elif run.status == 'failed' %}bg-red-100 text-red-600
+            {% else %}bg-yellow-100 text-yellow-700{% endif %}">
+            {{ run.status }}
+          </span>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="8" class="py-8 text-center text-gray-400 text-sm">Nenhum run registrado ainda.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div id="run-detail" class="mt-6 font-mono text-xs bg-gray-900 text-green-400 p-4 rounded whitespace-pre-wrap hidden"></div>
+</div>
+{% endblock %}

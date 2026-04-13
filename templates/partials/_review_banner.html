@@ -1,0 +1,17 @@
+{% set total_changes = (changes.get('new', 0) + changes.get('updated', 0) + changes.get('removed', 0)) if changes else 0 %}
+{% if total_changes > 0 %}
+<div id="review-banner" class="bg-blue-50 border border-blue-200 rounded px-4 py-2 flex items-center justify-between text-sm mt-2">
+  <span class="text-blue-800">
+    <strong>{{ changes.get('new', 0) }} novos</strong>
+    · {{ changes.get('updated', 0) }} atualizados
+    · {{ changes.get('removed', 0) }} removidos
+    desde sua última revisão
+  </span>
+  <button hx-post="/workspace/reviewed/{{ tipo }}"
+          hx-target="#review-banner"
+          hx-swap="outerHTML"
+          class="text-blue-600 hover:text-blue-800 font-medium ml-4 text-xs border border-blue-300 rounded px-2 py-1">
+    ✓ Marcar como revisado
+  </button>
+</div>
+{% endif %}

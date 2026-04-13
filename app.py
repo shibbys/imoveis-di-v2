@@ -1,10 +1,9 @@
 import os
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import FastAPI
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
 load_dotenv()
@@ -29,18 +28,13 @@ app = FastAPI(lifespan=lifespan)
 app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-from routers import auth
+from routers import auth, imoveis, scraping, workspace
 app.include_router(auth.router)
+app.include_router(imoveis.router)
+app.include_router(scraping.router)
+app.include_router(workspace.router)
 
 
 @app.get("/")
 async def root():
     return RedirectResponse(url="/aluguel")
-
-
-@app.get("/aluguel", response_class=HTMLResponse)
-async def aluguel_stub(request: Request):
-    from routers.auth import require_login
-    if not require_login(request):
-        return RedirectResponse(url="/login", status_code=303)
-    return HTMLResponse("<html><body>aluguel stub</body></html>")

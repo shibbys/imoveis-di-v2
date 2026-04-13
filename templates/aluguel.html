@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Aluguel — Imoveis DI{% endblock %}
+{% block content %}
+<div class="p-4">
+  <div id="review-banner-container">
+    {% include "partials/_review_banner.html" %}
+  </div>
+  <div class="flex gap-4 mt-4">
+    <aside class="w-56 shrink-0">
+      {% set tipo = "aluguel" %}
+      {% include "partials/_filters.html" %}
+    </aside>
+    <div class="flex-1 min-w-0">
+      <div id="tabela-container"
+           hx-get="/partials/imoveis?tipo=aluguel"
+           hx-trigger="load"
+           hx-target="#tabela-container"
+           hx-swap="innerHTML">
+        <p class="text-gray-400 text-sm">Carregando...</p>
+      </div>
+    </div>
+    <aside class="w-96 shrink-0" id="detalhe-panel"></aside>
+  </div>
+</div>
+{% endblock %}

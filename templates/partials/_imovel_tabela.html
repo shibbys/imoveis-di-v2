@@ -1,0 +1,25 @@
+{% if imoveis %}
+<div class="overflow-x-auto">
+  <table class="w-full text-sm border-collapse">
+    <thead>
+      <tr class="text-left border-b border-gray-200 text-gray-400 text-xs uppercase tracking-wide">
+        <th class="py-2 pr-3 font-medium">Imóvel</th>
+        <th class="py-2 pr-3 font-medium">Bairro</th>
+        <th class="py-2 pr-3 font-medium">Preço</th>
+        <th class="py-2 pr-3 font-medium">Imobiliária</th>
+        <th class="py-2 font-medium">Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for imovel in imoveis %}
+        {% include "partials/_imovel_linha.html" %}
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="text-xs text-gray-400 mt-2">{{ imoveis|length }} imóveis encontrados</p>
+{% else %}
+<div class="mt-12 text-center">
+  <p class="text-gray-400 text-sm">Nenhum imóvel encontrado com os filtros atuais.</p>
+</div>
+{% endif %}

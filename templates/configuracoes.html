@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Configurações — Imoveis DI{% endblock %}
+{% block content %}
+<div class="p-4 max-w-lg">
+  <h2 class="text-lg font-semibold mb-6">Configurações</h2>
+
+  <form method="post" action="/configuracoes" class="space-y-4 mb-8">
+    <div>
+      <label class="block text-sm font-medium text-gray-700 mb-1">Agendamento de scraping (cron)</label>
+      <input type="text" name="schedule" value="{{ workspace.scraping_schedule or '0 7 * * *' }}"
+             class="border border-gray-300 rounded px-3 py-2 text-sm w-full font-mono">
+      <p class="text-xs text-gray-400 mt-1">Formato cron: minuto hora dia mês dia-semana. Ex: "0 7 * * *" = todo dia às 7h</p>
+    </div>
+    <button type="submit"
+            class="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700">
+      Salvar configurações
+    </button>
+  </form>
+
+  <div>
+    <h3 class="font-medium text-sm mb-3 text-gray-700">Scraping manual</h3>
+    <button hx-post="/scraping/trigger"
+            hx-target="#scraping-log"
+            hx-swap="innerHTML"
+            class="bg-gray-800 text-white px-4 py-2 rounded text-sm hover:bg-gray-700">
+      ▶ Executar agora
+    </button>
+    <div id="scraping-log" class="mt-4 font-mono text-xs bg-gray-900 text-green-400 p-4 rounded min-h-16 whitespace-pre-wrap"></div>
+  </div>
+</div>
+{% endblock %}

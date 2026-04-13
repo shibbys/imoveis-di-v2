@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Imoveis DI{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12/dist/ext/sse.js"></script>
+  <script src="/static/app.js" defer></script>
+</head>
+<body class="bg-gray-50 text-gray-900">
+
+  <nav class="bg-white border-b border-gray-200 px-4 py-2 flex items-center gap-1">
+    <a href="/aluguel" class="px-3 py-1.5 rounded text-sm font-medium {% if active_tab == 'aluguel' %}bg-blue-600 text-white{% else %}text-gray-600 hover:bg-gray-100{% endif %}">
+      Aluguel
+    </a>
+    <a href="/compra" class="px-3 py-1.5 rounded text-sm font-medium {% if active_tab == 'compra' %}bg-blue-600 text-white{% else %}text-gray-600 hover:bg-gray-100{% endif %}">
+      Compra
+    </a>
+    <a href="/mapa" class="px-3 py-1.5 rounded text-sm font-medium {% if active_tab == 'mapa' %}bg-blue-600 text-white{% else %}text-gray-600 hover:bg-gray-100{% endif %}">
+      Mapa
+    </a>
+    <a href="/historico" class="px-3 py-1.5 rounded text-sm font-medium {% if active_tab == 'historico' %}bg-blue-600 text-white{% else %}text-gray-600 hover:bg-gray-100{% endif %}">
+      Histórico
+    </a>
+    <a href="/configuracoes" class="px-3 py-1.5 rounded text-sm font-medium {% if active_tab == 'configuracoes' %}bg-blue-600 text-white{% else %}text-gray-600 hover:bg-gray-100{% endif %}">
+      Configurações
+    </a>
+    <div class="ml-auto flex items-center gap-3 text-sm text-gray-500">
+      <span>{{ username }}</span>
+      <form method="post" action="/logout">
+        <button class="text-gray-400 hover:text-red-500">Sair</button>
+      </form>
+    </div>
+  </nav>
+
+  {% block content %}{% endblock %}
+
+</body>
+</html>

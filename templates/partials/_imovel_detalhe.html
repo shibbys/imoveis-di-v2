@@ -1,0 +1,99 @@
+<div class="bg-white rounded-lg border border-gray-200 p-4 text-sm sticky top-4">
+  {% if images %}
+  <div id="carousel-{{ imovel.id }}" data-carousel class="mb-4 relative bg-gray-100 rounded overflow-hidden"
+       style="height: 200px;">
+    {% for url in images %}
+    <img src="{{ url }}" class="w-full h-full object-cover absolute inset-0" alt="Foto {{ loop.index }}"
+         onerror="this.style.display='none'">
+    {% endfor %}
+    {% if images|length > 1 %}
+    <button class="carousel-prev absolute left-1 top-1/2 -translate-y-1/2 bg-black/50 text-white rounded-full w-7 h-7 flex items-center justify-center text-base leading-none z-10">‹</button>
+    <button class="carousel-next absolute right-1 top-1/2 -translate-y-1/2 bg-black/50 text-white rounded-full w-7 h-7 flex items-center justify-center text-base leading-none z-10">›</button>
+    <span class="absolute bottom-1 right-2 text-white text-xs bg-black/40 rounded px-1" id="carousel-counter-{{ imovel.id }}">1/{{ images|length }}</span>
+    {% endif %}
+  </div>
+  <script>initCarousel("carousel-{{ imovel.id }}")</script>
+  {% endif %}
+
+  <div class="flex items-start justify-between mb-3">
+    <div class="flex-1 min-w-0 pr-2">
+      <h3 class="font-semibold text-gray-900 truncate">{{ imovel.title or imovel.category or "Imóvel" }}</h3>
+      <p class="text-gray-400 text-xs mt-0.5">
+        {{ imovel.source_site }} ·
+        <a href="{{ imovel.source_url }}" target="_blank" class="text-blue-500 hover:underline">ver anúncio ↗</a>
+      </p>
+    </div>
+    <button hx-get="/partials/imovel/{{ imovel.id }}/edit"
+            hx-target="#detalhe-panel"
+            hx-swap="innerHTML"
+            class="text-xs text-gray-400 hover:text-blue-500 shrink-0">
+      editar
+    </button>
+  </div>
+
+  <dl class="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs mb-4 bg-gray-50 rounded p-3">
+    {% if imovel.price %}
+    <dt class="text-gray-400">Preço</dt>
+    <dd class="font-semibold text-gray-900">R$ {{ "{:,.0f}".format(imovel.price).replace(",", ".") }}</dd>
+    {% endif %}
+    {% if imovel.neighborhood %}
+    <dt class="text-gray-400">Bairro</dt><dd>{{ imovel.neighborhood }}</dd>
+    {% endif %}
+    {% if imovel.category %}
+    <dt class="text-gray-400">Tipo</dt><dd>{{ imovel.category }}</dd>
+    {% endif %}
+    {% if imovel.bedrooms %}
+    <dt class="text-gray-400">Quartos</dt><dd>{{ imovel.bedrooms }}</dd>
+    {% endif %}
+    {% if imovel.bathrooms %}
+    <dt class="text-gray-400">Banheiros</dt><dd>{{ imovel.bathrooms }}</dd>
+    {% endif %}
+    {% if imovel.parking_spots %}
+    <dt class="text-gray-400">Vagas</dt><dd>{{ imovel.parking_spots }}</dd>
+    {% endif %}
+    {% if imovel.area_m2 %}
+    <dt class="text-gray-400">Área</dt><dd>{{ imovel.area_m2 }} m²</dd>
+    {% endif %}
+    {% if imovel.land_area_m2 %}
+    <dt class="text-gray-400">Terreno</dt><dd>{{ imovel.land_area_m2 }} m²</dd>
+    {% endif %}
+    <dt class="text-gray-400">Visto em</dt>
+    <dd>{{ imovel.first_seen[:10] if imovel.first_seen else "—" }}</dd>
+  </dl>
+
+  {% if imovel.address %}
+  <p class="text-xs text-gray-500 mb-2 flex items-start gap-1">
+    <span>📍</span><span>{{ imovel.address }}</span>
+  </p>
+  {% endif %}
+
+  {% if imovel.comments %}
+  <div class="text-xs text-gray-600 bg-amber-50 border border-amber-100 rounded p-2 mb-3">
+    {{ imovel.comments }}
+  </div>
+  {% endif %}
+
+  {% if price_history %}
+  <div class="mb-3">
+    <p class="text-xs font-medium text-gray-500 mb-2">Histórico de preço</p>
+    <div class="space-y-1">
+      {% for h in price_history %}
+      <div class="flex justify-between text-xs">
+        <span class="text-gray-400">{{ h.scraped_at[:10] }}</span>
+        <span class="font-medium">{% if h.price %}R$ {{ "{:,.0f}".format(h.price).replace(",", ".") }}{% else %}—{% endif %}</span>
+        <span class="{% if h.change_flag == 'new' %}text-green-500{% elif h.change_flag == 'updated' %}text-yellow-600{% else %}text-red-400{% endif %} font-medium">
+          {{ h.change_flag }}
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if last_activity %}
+  <p class="text-xs text-gray-400 border-t border-gray-100 pt-2 mt-2">
+    Última alteração por <strong class="text-gray-600">{{ last_activity.username }}</strong>
+    · {{ last_activity.changed_at[:10] }}
+  </p>
+  {% endif %}
+</div>

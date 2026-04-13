@@ -1,0 +1,55 @@
+<form id="filter-form"
+      hx-get="/partials/imoveis"
+      hx-target="#tabela-container"
+      hx-trigger="change from:.auto-filter, submit">
+  <input type="hidden" name="tipo" value="{{ tipo }}">
+  <div class="space-y-3 text-sm">
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wide">Imobiliária</label>
+      <select name="site" class="auto-filter w-full border border-gray-300 rounded px-2 py-1.5 text-sm bg-white">
+        <option value="">Todas</option>
+        {% for s in filter_options.sites %}
+        <option value="{{ s }}" {% if filters.get('site') == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wide">Status</label>
+      <select name="status" class="auto-filter w-full border border-gray-300 rounded px-2 py-1.5 text-sm bg-white">
+        <option value="">Todos</option>
+        {% for s in filter_options.statuses %}
+        <option value="{{ s }}" {% if filters.get('status') == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wide">Bairro</label>
+      <select name="neighborhood" class="auto-filter w-full border border-gray-300 rounded px-2 py-1.5 text-sm bg-white">
+        <option value="">Todos</option>
+        {% for n in filter_options.neighborhoods %}
+        <option value="{{ n }}" {% if filters.get('neighborhood') == n %}selected{% endif %}>{{ n }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wide">Tipo</label>
+      <select name="category" class="auto-filter w-full border border-gray-300 rounded px-2 py-1.5 text-sm bg-white">
+        <option value="">Todos</option>
+        {% for c in filter_options.categories %}
+        <option value="{{ c }}" {% if filters.get('category') == c %}selected{% endif %}>{{ c }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wide">Preço</label>
+      <div class="flex gap-1">
+        <input type="number" name="price_min" value="{{ filters.get('price_min') or '' }}"
+               placeholder="Min" min="0"
+               class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs">
+        <input type="number" name="price_max" value="{{ filters.get('price_max') or '' }}"
+               placeholder="Máx" min="0"
+               class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs">
+      </div>
+    </div>
+  </div>
+</form>
