@@ -109,17 +109,20 @@ def _save_property(conn, prop: PropertyData, run_id: str,
 
 
 def build_run_log_line(site_name: str, found: int, new: int,
-                        updated: int, error: Optional[str]) -> str:
+                        updated: int, removed: int = 0,
+                        error: Optional[str] = None) -> str:
     now = datetime.now(timezone.utc).strftime("%H:%M:%S")
     if error:
         return f"[{now}] {site_name} → ERRO: {error[:80]}"
-    if new == 0 and updated == 0:
+    if new == 0 and updated == 0 and removed == 0:
         return f"[{now}] {site_name} → {found} encontrados, 0 mudanças"
     parts = []
     if new:
         parts.append(f"{new} novos")
     if updated:
         parts.append(f"{updated} atualizados")
+    if removed:
+        parts.append(f"{removed} removidos")
     return f"[{now}] {site_name} → {found} encontrados, {', '.join(parts)}"
 
 
@@ -158,13 +161,16 @@ async def run_scraping(sites_config: Optional[list] = None) -> None:
 
     total_new = 0
     total_updated = 0
+    total_removed = 0
     total_found = 0
+    error_count = 0
     log_lines = []
 
     try:
         for site in sites_config:
             site_new = 0
             site_updated = 0
+            site_removed = 0
             error_msg = None
             properties = []
 
@@ -183,16 +189,43 @@ async def run_scraping(sites_config: Optional[list] = None) -> None:
                         total_updated += 1
                     _save_property(conn, prop, run_id, flag, changes)
 
+                # Find active properties for this site that weren't seen this run
+                scraped_ids = {prop.id for prop in properties}
+                active_rows = conn.execute(
+                    "SELECT id FROM imoveis WHERE source_site=? AND is_active=1",
+                    [site["name"]]
+                ).fetchall()
+                for row in active_rows:
+                    if row["id"] not in scraped_ids:
+                        now = datetime.now(timezone.utc).isoformat()
+                        conn.execute(
+                            "UPDATE imoveis SET is_active=0, last_seen=? WHERE id=?",
+                            [now, row["id"]]
+                        )
+                        conn.execute("""
+                            INSERT INTO historico (
+                                imovel_id, run_id, scraped_at, price, area_m2, land_area_m2,
+                                bedrooms, neighborhood, is_active, change_flag, changes_summary
+                            )
+                            SELECT id, ?, ?, price, area_m2, land_area_m2,
+                                   bedrooms, neighborhood, 0, 'removed', '{}'
+                            FROM imoveis WHERE id=?
+                        """, [run_id, now, row["id"]])
+                        site_removed += 1
+                        total_removed += 1
+
                 conn.commit()
 
             except Exception as e:
                 error_msg = str(e)[:80]
+                error_count += 1
 
             line = build_run_log_line(
                 site["name"],
                 found=len(properties),
                 new=site_new,
                 updated=site_updated,
+                removed=site_removed,
                 error=error_msg,
             )
             log_lines.append(line)
@@ -204,19 +237,26 @@ async def run_scraping(sites_config: Optional[list] = None) -> None:
         summary = (
             f"[{now_str}] CONCLUÍDO → {len(sites_config)} sites, "
             f"{total_found} imóveis, {total_new} novos, "
-            f"{total_updated} atualizados ({duration:.0f}s)"
+            f"{total_updated} atualizados, {total_removed} removidos ({duration:.0f}s)"
         )
         log_lines.append(summary)
         await queue.put(summary)
         await queue.put("__DONE__")
 
+        if error_count == len(sites_config):
+            final_status = "failed"
+        elif error_count > 0:
+            final_status = "partial"
+        else:
+            final_status = "completed"
+
         conn.execute("""
             UPDATE runs SET
-                status='completed', total_found=?, new_count=?,
-                updated_count=?, duration_seconds=?, log=?
+                status=?, total_found=?, new_count=?,
+                updated_count=?, removed_count=?, duration_seconds=?, log=?
             WHERE run_id=?
-        """, [total_found, total_new, total_updated, duration,
-              "\n".join(log_lines), run_id])
+        """, [final_status, total_found, total_new, total_updated, total_removed,
+              duration, "\n".join(log_lines), run_id])
         conn.commit()
         conn.close()
         _running = False
