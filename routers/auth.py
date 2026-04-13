@@ -34,7 +34,14 @@ async def login_post(
     conn = get_connection()
     user = get_user_by_username(conn, username)
     conn.close()
-    if user and bcrypt.checkpw(password.encode(), user["password_hash"].encode()):
+    authenticated = False
+    if user:
+        try:
+            authenticated = bcrypt.checkpw(password.encode(), user["password_hash"].encode())
+        except (ValueError, Exception):
+            authenticated = False
+
+    if authenticated:
         request.session["user_id"] = user["id"]
         request.session["username"] = user["username"]
         return RedirectResponse(url="/aluguel", status_code=303)
