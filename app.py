@@ -19,9 +19,36 @@ if not SESSION_SECRET:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    from storage.database import init_db
+    from storage.database import init_db, get_connection, get_workspace
+    from scrapers.runner import run_scraping
+    from apscheduler.schedulers.asyncio import AsyncIOScheduler
+    from apscheduler.triggers.cron import CronTrigger
+
     init_db(WORKSPACE)
+
+    scheduler = AsyncIOScheduler()
+    conn = get_connection()
+    ws = get_workspace(conn)
+    conn.close()
+
+    schedule = (ws["scraping_schedule"] if ws and ws["scraping_schedule"]
+                else "0 7 * * *")
+    parts = schedule.split()
+    if len(parts) == 5:
+        scheduler.add_job(
+            run_scraping,
+            CronTrigger(
+                minute=parts[0], hour=parts[1], day=parts[2],
+                month=parts[3], day_of_week=parts[4]
+            ),
+            id="scheduled_scraping",
+            replace_existing=True,
+        )
+
+    scheduler.start()
+    app.state.scheduler = scheduler  # Store for potential runtime reschedule
     yield
+    scheduler.shutdown(wait=False)
 
 
 app = FastAPI(lifespan=lifespan)
