@@ -64,11 +64,11 @@ def test_kenlo_extracts_source_url():
 
 
 def test_kenlo_next_page_url():
+    # Kenlo uses JS-only "Ver mais" button — no URL-based pagination
     soup = make_soup("kenlo_listing.html")
     scraper = KenloScraper("test_site", "https://example.com/imoveis", "aluguel")
     next_url = scraper._get_next_page_url(soup, "https://example.com/imoveis")
-    assert next_url is not None
-    assert "page=2" in next_url
+    assert next_url is None
 
 
 def test_kenlo_category_from_title():

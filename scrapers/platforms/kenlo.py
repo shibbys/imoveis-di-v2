@@ -8,8 +8,8 @@ from scrapers.base import BaseScraper, PropertyData, normalize_price, normalize_
 class KenloScraper(BaseScraper):
     """Scraper for sites running on the Kenlo platform."""
 
-    CARD_SELECTOR = ".property-card, [class*='imovel-card'], [class*='card-imovel']"
-    NEXT_PAGE_SELECTOR = "a.next-page, a[rel='next'], .pagination .next a"
+    CARD_SELECTOR = ".card-listing"
+    NEXT_PAGE_SELECTOR = ""  # not used — Kenlo uses JS-only "Ver mais" button
 
     # Maps text keywords to category names (checked against title and URL)
     CATEGORY_KEYWORDS = [
@@ -104,57 +104,58 @@ class KenloScraper(BaseScraper):
     def _parse_card(self, card, base_url: str):
         """Parse a single property card. Returns PropertyData or None."""
         try:
-            # Get URL
-            url_raw = card.get("data-url") or ""
-            if not url_raw:
-                link = card.find("a")
-                url_raw = link.get("href", "") if link else ""
-            if not url_raw:
+            from urllib.parse import urljoin
+            a = card.find("a", href=True)
+            if not a:
                 return None
-            if url_raw.startswith("http"):
-                source_url = url_raw
-            else:
-                source_url = base_url.rstrip("/") + "/" + url_raw.lstrip("/")
+            source_url = urljoin(base_url, a["href"])
 
-            # Title
-            title_el = card.select_one(
-                ".property-title, h2, h3, [class*='title'], [class*='titulo'], [class*='nome']"
-            )
-            title = title_el.get_text(strip=True) if title_el else ""
+            neighborhood_el = card.select_one("h2.card-title, .card-title")
+            neighborhood = neighborhood_el.get_text(strip=True) if neighborhood_el else ""
 
-            # Price
-            price_el = card.select_one(
-                ".property-price, [class*='price'], [class*='preco'], [class*='valor']"
-            )
-            price = normalize_price(price_el.get_text() if price_el else None)
-
-            # Neighborhood
-            neighborhood = self._extract_neighborhood(card, source_url)
-
-            # Category
+            cat_el = card.select_one("h3.card-text, h3")
+            title = cat_el.get_text(strip=True) if cat_el else neighborhood
             category = self._detect_category(title, source_url)
 
-            # Features
-            features = self._extract_features(card)
+            price_el = card.select_one(".h-money.location, .location")
+            price_text = price_el.get_text() if price_el else None
+            if price_text:
+                # Strip suffixes like /mês, /ano, /dia before normalizing
+                price_text = re.sub(r"/\w+", "", price_text)
+            price = normalize_price(price_text)
 
-            # Images
-            images = self._extract_images(card)
+            bedrooms = bathrooms = parking_spots = area_m2 = land_area_m2 = None
+            for val in card.select(".values .value"):
+                text = val.get_text(strip=True).lower()
+                if "quarto" in text or "dorm" in text:
+                    bedrooms = normalize_int(text)
+                elif "banheiro" in text:
+                    bathrooms = normalize_int(text)
+                elif "vaga" in text or "garagem" in text:
+                    parking_spots = normalize_int(text)
+                elif "m²" in text or "m2" in text:
+                    area_m2 = normalize_area(text)
+
+            images = []
+            for el in card.select(".card-loading, .card-img-top"):
+                style = el.get("style", "")
+                m = re.search(r"url\(['\"]?(https?://[^'\")\s]+)['\"]?\)", style)
+                if m and m.group(1) not in images:
+                    images.append(m.group(1))
+            for img in card.find_all("img"):
+                for attr in ("data-src", "src"):
+                    src = img.get(attr, "")
+                    if src and not src.startswith("data:") and src not in images:
+                        images.append(src)
+                        break
 
             return PropertyData(
-                source_site=self.site_name,
-                source_url=source_url,
-                title=title,
-                city="Dois Irmãos",
-                neighborhood=neighborhood,
-                category=category,
-                transaction_type=self.transaction_type,
-                price=price,
-                bedrooms=features["bedrooms"],
-                bathrooms=features["bathrooms"],
-                parking_spots=features["parking_spots"],
-                area_m2=features["area_m2"],
-                land_area_m2=features["land_area_m2"],
-                images=images,
+                source_site=self.site_name, source_url=source_url,
+                title=title, city="Dois Irmãos", neighborhood=neighborhood,
+                category=category, transaction_type=self.transaction_type,
+                price=price, bedrooms=bedrooms, bathrooms=bathrooms,
+                parking_spots=parking_spots, area_m2=area_m2,
+                land_area_m2=land_area_m2, images=images,
             )
         except Exception:
             return None
@@ -169,21 +170,8 @@ class KenloScraper(BaseScraper):
         return results
 
     def _get_next_page_url(self, soup: BeautifulSoup, current_url: str):
-        el = soup.select_one(self.NEXT_PAGE_SELECTOR)
-        if not el:
-            return None
-        href = el.get("href", "")
-        if not href or href == "#":
-            return None
-        if href.startswith("http"):
-            return href
-        # Relative URL starting with ? (query string)
-        if href.startswith("?"):
-            base = current_url.split("?")[0].split("#")[0]
-            return base + href
-        # Relative path
-        base = current_url.split("?")[0].split("#")[0]
-        return base.rstrip("/") + "/" + href.lstrip("/")
+        # Kenlo uses JS-only "Ver mais" button — no URL pagination
+        return None
 
     async def scrape(self) -> list:
         results = []
@@ -205,20 +193,18 @@ class KenloScraper(BaseScraper):
                     "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
                 )
                 while current_url and page_num < self.max_pages:
-                    try:
-                        await page.goto(current_url, wait_until="networkidle", timeout=30000)
-                        html = await page.content()
-                        soup = BeautifulSoup(html, "html.parser")
-                        page_results = self._parse_page(soup, current_url)
-                        if not page_results:
-                            break
-                        results.extend(page_results)
-                        current_url = self._get_next_page_url(soup, current_url)
-                        page_num += 1
-                        if current_url:
-                            await asyncio.sleep(self.delay_seconds)
-                    except Exception:
+                    await page.goto(current_url, wait_until="networkidle", timeout=30000)
+                    await page.wait_for_timeout(1000)
+                    html = await page.content()
+                    soup = BeautifulSoup(html, "html.parser")
+                    page_results = self._parse_page(soup, current_url)
+                    if not page_results:
                         break
+                    results.extend(page_results)
+                    current_url = self._get_next_page_url(soup, current_url)
+                    page_num += 1
+                    if current_url:
+                        await asyncio.sleep(self.delay_seconds)
             finally:
                 await browser.close()
         return results

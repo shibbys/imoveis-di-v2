@@ -36,9 +36,14 @@ def normalize_price(value) -> Optional[float]:
         return None
     # Remove currency symbol, spaces, non-numeric except comma/dot
     cleaned = re.sub(r"[R$\s]", "", text)
-    # Brazilian format: 1.500,00 → remove dots, replace comma with dot
+    # Strip non-numeric suffix (e.g. /mês, /ano)
+    cleaned = re.sub(r"[^\d.,].*$", "", cleaned)
+    # Brazilian format: 1.500,00 or 1.500 (no cents) → remove dots, replace comma with dot
     if re.search(r"\d\.\d{3},", cleaned):
         cleaned = cleaned.replace(".", "").replace(",", ".")
+    elif re.search(r"\d\.\d{3}$", cleaned):
+        # e.g. "1.800" — dot is thousands separator, not decimal
+        cleaned = cleaned.replace(".", "")
     else:
         cleaned = cleaned.replace(",", ".")
     try:
