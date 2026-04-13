@@ -1,4 +1,3 @@
-import asyncio
 import re
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright
@@ -174,9 +173,6 @@ class KenloScraper(BaseScraper):
         return None
 
     async def scrape(self) -> list:
-        results = []
-        current_url = self.url
-        page_num = 0
         async with async_playwright() as pw:
             browser = await pw.chromium.launch(headless=True)
             try:
@@ -188,23 +184,24 @@ class KenloScraper(BaseScraper):
                     )
                 )
                 page = await ctx.new_page()
-                # Disable webdriver detection
                 await page.add_init_script(
                     "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
                 )
-                while current_url and page_num < self.max_pages:
-                    await page.goto(current_url, wait_until="networkidle", timeout=30000)
-                    await page.wait_for_timeout(1000)
-                    html = await page.content()
-                    soup = BeautifulSoup(html, "html.parser")
-                    page_results = self._parse_page(soup, current_url)
-                    if not page_results:
+                await page.goto(self.url, wait_until="networkidle", timeout=30000)
+                await page.wait_for_timeout(1000)
+
+                # Click "Ver mais" until button disappears or max_pages reached
+                clicks = 0
+                while clicks < self.max_pages - 1:
+                    btn = await page.query_selector("button.btn-next, .pagination-cell button, .pagination button")
+                    if not btn:
                         break
-                    results.extend(page_results)
-                    current_url = self._get_next_page_url(soup, current_url)
-                    page_num += 1
-                    if current_url:
-                        await asyncio.sleep(self.delay_seconds)
+                    await btn.click()
+                    await page.wait_for_timeout(1500)
+                    clicks += 1
+
+                html = await page.content()
+                soup = BeautifulSoup(html, "html.parser")
+                return self._parse_page(soup, self.url)
             finally:
                 await browser.close()
-        return results
