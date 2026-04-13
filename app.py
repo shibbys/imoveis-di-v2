@@ -10,7 +10,12 @@ from starlette.middleware.sessions import SessionMiddleware
 load_dotenv()
 
 WORKSPACE = os.getenv("WORKSPACE", "workspaces/imoveis.db")
-SESSION_SECRET = os.getenv("SESSION_SECRET", "dev-secret-change-in-production")
+SESSION_SECRET = os.getenv("SESSION_SECRET")
+if not SESSION_SECRET:
+    import sys
+    if os.getenv("ENV", "development") == "production":
+        sys.exit("ERROR: SESSION_SECRET environment variable must be set in production")
+    SESSION_SECRET = "dev-secret-change-in-production"
 
 
 @asynccontextmanager
