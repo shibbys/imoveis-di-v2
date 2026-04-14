@@ -215,6 +215,7 @@ class ImobiBrasilScraper(KenloScraper):
                     if not next_url:
                         break
                     current_url = next_url
+
             finally:
                 await browser.close()
 

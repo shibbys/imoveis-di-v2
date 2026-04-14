@@ -1,81 +1,82 @@
 {% extends "base.html" %}
 {% block title %}Configurações — Imoveis DI{% endblock %}
 {% block content %}
-<div class="p-4 max-w-5xl">
+<div class="p-4">
   <h2 class="text-lg font-semibold mb-6">Configurações</h2>
 
-  {# ── Scraping manual ────────────────────────────────────────────────────── #}
-  <div class="mb-8">
-    <h3 class="font-medium text-sm mb-3 text-gray-700">Scraping manual</h3>
-    <div class="flex flex-wrap gap-2 mb-3">
-      <form hx-post="/scraping/trigger" hx-target="#scraping-log" hx-swap="innerHTML">
-        <button type="submit"
-                class="bg-gray-800 text-white px-4 py-2 rounded text-sm hover:bg-gray-700">
-          ▶ Executar tudo
-        </button>
-      </form>
-      <form hx-post="/scraping/trigger-sites" hx-target="#scraping-log" hx-swap="innerHTML">
-        <input type="hidden" name="transaction_type" value="aluguel">
-        <button type="submit"
-                class="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700">
-          ▶ Só Aluguel
-        </button>
-      </form>
-      <form hx-post="/scraping/trigger-sites" hx-target="#scraping-log" hx-swap="innerHTML">
-        <input type="hidden" name="transaction_type" value="compra">
-        <button type="submit"
-                class="bg-green-600 text-white px-4 py-2 rounded text-sm hover:bg-green-700">
-          ▶ Só Compra
-        </button>
-      </form>
-    </div>
-    <div id="scraping-log"
-         class="font-mono text-xs bg-gray-900 text-green-400 p-4 rounded min-h-12 whitespace-pre-wrap">
-    </div>
-  </div>
+  <div class="flex gap-6 items-start">
 
-  {# ── Imobiliárias ──────────────────────────────────────────────────────── #}
-  <div class="mb-8">
-    <h3 class="font-medium text-sm mb-3 text-gray-700">Imobiliárias cadastradas</h3>
-    <div class="overflow-x-auto">
-      <table class="w-full text-sm border-collapse">
-        <thead>
-          <tr class="text-left border-b border-gray-200 text-gray-400 text-xs uppercase tracking-wide">
-            <th class="py-2 pr-4 font-medium">Imobiliária</th>
-            <th class="py-2 pr-4 font-medium">Aluguel</th>
-            <th class="py-2 pr-4 font-medium">Compra</th>
-            <th class="py-2 font-medium">Ações</th>
-          </tr>
-        </thead>
-        <tbody id="site-groups-body">
-          {% for base, group in site_groups.items() %}
-            {% include "partials/_config_site_row.html" %}
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  {# ── Agendamento ───────────────────────────────────────────────────────── #}
-  <div class="border-t border-gray-200 pt-6">
-    <h3 class="font-medium text-sm mb-3 text-gray-700">Agendamento automático</h3>
-    <form method="post" action="/configuracoes" class="space-y-3 max-w-sm">
-      <div>
-        <label class="block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wide">
-          Cron schedule
-        </label>
-        <input type="text" name="schedule"
-               value="{{ workspace.scraping_schedule or '0 7 * * *' }}"
-               class="border border-gray-300 rounded px-3 py-2 text-sm w-full font-mono">
-        <p class="text-xs text-gray-400 mt-1">
-          Formato cron: minuto hora dia mês dia-semana. Ex: "0 7 * * *" = todo dia às 7h
-        </p>
+    {# Col 1 — 70%: tabela de imobiliárias #}
+    <div style="width:70%">
+      {# Cabeçalho: título + botões globais + status indicator #}
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="font-medium text-sm text-gray-700">Imobiliárias</h3>
+        <div class="flex items-center gap-1.5">
+          <form hx-post="/scraping/trigger" hx-target="#scraping-status" hx-swap="innerHTML" class="inline">
+            <button type="submit" class="bg-gray-700 text-white px-2.5 py-1 rounded text-xs hover:bg-gray-600">
+              &#9654; Tudo
+            </button>
+          </form>
+          <form hx-post="/scraping/trigger-sites" hx-target="#scraping-status" hx-swap="innerHTML" class="inline">
+            <input type="hidden" name="transaction_type" value="aluguel">
+            <button type="submit" class="bg-blue-600 text-white px-2.5 py-1 rounded text-xs hover:bg-blue-700">
+              &#9654; Aluguel
+            </button>
+          </form>
+          <form hx-post="/scraping/trigger-sites" hx-target="#scraping-status" hx-swap="innerHTML" class="inline">
+            <input type="hidden" name="transaction_type" value="compra">
+            <button type="submit" class="bg-green-600 text-white px-2.5 py-1 rounded text-xs hover:bg-green-700">
+              &#9654; Compra
+            </button>
+          </form>
+        </div>
       </div>
-      <button type="submit"
-              class="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700">
-        Salvar
-      </button>
-    </form>
+      {# Status indicator: recebe resposta dos triggers e ativa SSE #}
+      <div id="scraping-status" class="text-xs text-gray-400 mb-2 min-h-[18px]"></div>
+
+      <div class="overflow-x-auto">
+        <table class="text-sm border-collapse w-full">
+          <thead>
+            <tr class="text-left border-b border-gray-200 text-gray-400 text-xs uppercase tracking-wide">
+              <th class="py-2 pr-3 font-medium w-16">Hora</th>
+              <th class="py-2 pr-4 font-medium">Imobiliária</th>
+              <th class="py-2 pr-3 font-medium">Aluguel</th>
+              <th class="py-2 pr-3 font-medium">Compra</th>
+              <th class="py-2 pr-3 font-medium w-24">Status</th>
+              <th class="py-2 pr-3 font-medium">Refresh</th>
+              <th class="py-2 font-medium w-8"></th>
+            </tr>
+          </thead>
+          <tbody id="site-groups-body">
+            {% for base, group in site_groups.items() %}
+              {% include "partials/_config_site_row.html" %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {# Col 2 — 30%: agendamento #}
+    <div style="width:30%">
+      <h3 class="font-medium text-sm mb-3 text-gray-700">Agendamento</h3>
+      <form method="post" action="/configuracoes" class="space-y-3">
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wide">Cron</label>
+          <input type="text" name="schedule"
+                 value="{{ workspace.scraping_schedule or '0 7 * * *' }}"
+                 class="border border-gray-300 rounded px-2 py-1.5 text-sm font-mono w-full">
+        </div>
+        <button type="submit"
+                class="bg-blue-600 text-white px-3 py-1.5 rounded text-sm hover:bg-blue-700 w-full">
+          Salvar
+        </button>
+        <p class="text-xs text-gray-400">
+          minuto hora dia mês dia-semana<br>
+          ex: <code class="font-mono">0 7 * * *</code> = todo dia às 7h
+        </p>
+      </form>
+    </div>
+
   </div>
 </div>
 {% endblock %}

@@ -1,7 +1,140 @@
 import re
+from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright
 from scrapers.base import BaseScraper, PropertyData, normalize_price, normalize_area, normalize_int
+
+
+_SKIP_PATTERNS = (
+    "logo", "icon", "favicon", "sprite", "placeholder",
+    "loading", "blank", "noimage", "no-image", "sem-imagem",
+    "/_layout/", "/img/layout", "/img/_layout", "/assets/icon",
+    "/static/img/ui", "avatar", "banner-", "header-",
+)
+
+# These patterns in a URL strongly suggest a property photo (not a logo/banner).
+# Intentionally narrow: .jpg/.png alone are too broad and match everything.
+_PHOTO_HINTS = (
+    "/upload", "/fotos/", "/photos/", "/imovel/", "/imoveis/",
+    "/imagens/", "/imgs/", "cloudinary", "amazonaws",
+    "imgix", "voaimgs", "kenlo", "imobibrasil", "tecimob", "jetimob",
+    "vistahost", "vistasoft",
+)
+
+# CSS selectors for sections that contain "related / similar properties" listings.
+# These appear on every detail page and would make all properties share the same images.
+_RELATED_SELS = (
+    "[class*='similar']", "[class*='relacionad']", "[class*='semelhante']",
+    "[class*='recomend']", "[class*='suggest']", "[class*='outros-imoveis']",
+    "[class*='mais-imoveis']", "[class*='veja-tambem']", "[class*='other-prop']",
+    "[id*='similar']", "[id*='relacionad']", "[id*='outros']",
+)
+
+
+def extract_detail_images(soup: BeautifulSoup, base_url: str) -> list:
+    """Extract the property's own gallery images from a rendered detail page.
+
+    Strategy:
+    1. Strip footer, nav, and "related properties" sections so their thumbnails
+       don't contaminate the result (they're the same on every detail page).
+    2. Try gallery-specific CSS selectors in priority order; stop at the FIRST
+       selector that yields valid images (prevents merging main gallery with
+       secondary carousels).
+    3. Fall back to background-image styles if no <img> gallery found.
+    4. Last resort: all <img> tags filtered by platform-specific URL patterns.
+    """
+    import copy
+    # Work on a shallow copy so we can decompose without affecting the caller's soup
+    scope = copy.copy(soup)
+
+    # Remove noise sections
+    for sel in (*_RELATED_SELS, "footer", "nav", "header", "aside"):
+        for el in scope.select(sel):
+            el.decompose()
+
+    seen: set = set()
+
+    def _valid(src: str) -> bool:
+        if not src or not src.startswith("http"):
+            return False
+        lower = src.lower()
+        return not any(s in lower for s in _SKIP_PATTERNS)
+
+    def _resolve(src: str) -> str:
+        return urljoin(base_url, src) if src and not src.startswith("http") else src
+
+    def _from_img(img) -> str:
+        for attr in ("data-src", "data-lazy-src", "data-original", "src"):
+            val = img.get(attr, "")
+            if val and not val.startswith("data:"):
+                return _resolve(val)
+        return ""
+
+    def _collect(candidates) -> list:
+        result = []
+        for src in candidates:
+            if src and src not in seen and _valid(src):
+                seen.add(src)
+                result.append(src)
+        return result
+
+    _IMG_EXTS = (".jpg", ".jpeg", ".png", ".webp", ".avif")
+
+    def _is_image_url(url: str) -> bool:
+        lower = url.lower().split("?")[0]
+        return any(lower.endswith(ext) for ext in _IMG_EXTS)
+
+    # Fancybox / lightbox galleries (Vista, and others): full images are in
+    # the href of <a data-fancybox> / <a data-lightbox> / <a data-gallery>.
+    # There are no <img> tags inside — only the href matters.
+    for attr in ("data-fancybox", "data-lightbox", "data-gallery", "data-image"):
+        anchors = scope.select(f"a[{attr}]")
+        if anchors:
+            hrefs = _collect(
+                href for a in anchors
+                for href in [a.get("href", "")]
+                if href and _is_image_url(href)
+            )
+            if hrefs:
+                return hrefs
+
+    # Gallery containers tried in priority order.
+    # IMPORTANT: we stop at the FIRST selector that produces images so we don't
+    # accidentally merge images from secondary carousels (e.g. "more properties").
+    gallery_sels = [
+        ".swiper-slide img",
+        ".carousel-item img",
+        ".slick-slide img",
+        "[class*='gallery'] img", "[class*='galeria'] img",
+        "[class*='foto'] img",   "[class*='fotos'] img",
+        "[class*='photo'] img",  "[class*='photos'] img",
+        "[class*='imagem'] img", "[class*='imagens'] img",
+        "[class*='slider'] img",
+        "figure img",
+    ]
+    for sel in gallery_sels:
+        imgs = _collect(_from_img(img) for img in scope.select(sel))
+        if imgs:
+            return imgs
+
+    # Background-image styles (used by some CSS-only carousels)
+    bg_imgs = _collect(
+        m.group(1)
+        for el in scope.find_all(style=True)
+        for m in [re.search(r"url\(['\"]?(https?://[^'\")\s]+)['\"]?\)", el.get("style", ""))]
+        if m
+    )
+    if bg_imgs:
+        return bg_imgs
+
+    # Last-resort fallback: all <img> filtered by platform-specific URL patterns.
+    # Deliberately narrow — generic extensions like .jpg alone match logos/banners.
+    fallback = _collect(
+        src for img in scope.find_all("img")
+        for src in [_from_img(img)]
+        if src and any(h in src.lower() for h in _PHOTO_HINTS)
+    )
+    return fallback
 
 
 class KenloScraper(BaseScraper):
@@ -31,6 +164,11 @@ class KenloScraper(BaseScraper):
             if keyword in combined:
                 return cat_name
         return "Casa"
+
+    @staticmethod
+    def _extract_detail_images(soup: BeautifulSoup, base_url: str) -> list:
+        """Delegate to module-level helper."""
+        return extract_detail_images(soup, base_url)
 
     def _extract_images(self, card) -> list:
         images = []
@@ -223,6 +361,7 @@ class KenloScraper(BaseScraper):
                     if not next_url:
                         break
                     current_url = next_url
+
             finally:
                 await browser.close()
 
@@ -267,6 +406,7 @@ class KenloScraper(BaseScraper):
 
                 html = await page.content()
                 soup = BeautifulSoup(html, "html.parser")
-                return self._parse_page(soup, self.url)
+                results = self._parse_page(soup, self.url)
+                return results
             finally:
                 await browser.close()

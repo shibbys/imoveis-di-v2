@@ -1,23 +1,32 @@
 import asyncio
+import json
 from fastapi import APIRouter, Request, BackgroundTasks
 from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 from sse_starlette.sse import EventSourceResponse
 from routers.auth import require_login
 from scrapers.runner import run_scraping, get_event_queue, is_running
-from storage.database import get_connection, get_sites
+from storage.database import get_connection, get_sites, get_last_run
 
 router = APIRouter()
+templates = Jinja2Templates(directory="templates")
 
-_SSE_HTML = """
-    <div hx-ext="sse"
-         sse-connect="/scraping/stream"
-         sse-swap="message"
-         hx-target="this"
-         hx-swap="beforeend"
-         class="text-green-400 text-xs space-y-0.5">
-      <p class="text-gray-400">Iniciando scraping...</p>
-    </div>
+_LOG_TABLE_HEADER = """
+<table class="w-full text-sm border-collapse">
+  <thead>
+    <tr class="text-left text-gray-500 text-xs uppercase tracking-wide border-b border-gray-700">
+      <th class="py-1.5 px-3 font-medium w-16">Hora</th>
+      <th class="py-1.5 px-3 font-medium">Imobili&#225;ria</th>
+      <th class="py-1.5 px-3 font-medium">Aluguel</th>
+      <th class="py-1.5 px-3 font-medium">Compra</th>
+      <th class="py-1.5 px-3 font-medium w-24">Status</th>
+    </tr>
+  </thead>
+  <tbody id="scraping-log-body"></tbody>
+</table>
 """
+
+_SSE_HTML = '<p id="scraping-live-status" class="text-xs text-gray-500">Iniciando...</p>'
 
 
 @router.post("/scraping/trigger", response_class=HTMLResponse)
@@ -25,8 +34,16 @@ async def trigger_scraping(request: Request, background_tasks: BackgroundTasks):
     if not require_login(request):
         return HTMLResponse(status_code=401)
     if is_running():
-        return HTMLResponse(content='<p class="text-yellow-400 text-xs">Scraping já em execução...</p>')
-    background_tasks.add_task(run_scraping)
+        return HTMLResponse(content='<p class="text-yellow-400 text-xs">Scraping j&#225; em execu&#231;&#227;o...</p>')
+    form = await request.form()
+    force_images = form.get("force_images") in ("1", "on", "true")
+    conn = get_connection()
+    all_sites = [dict(r) for r in get_sites(conn, active_only=True)]
+    conn.close()
+    if force_images:
+        for s in all_sites:
+            s["force_images"] = True
+    background_tasks.add_task(run_scraping, sites_config=all_sites)
     return HTMLResponse(content=_SSE_HTML)
 
 
@@ -36,10 +53,11 @@ async def trigger_scraping_sites(request: Request, background_tasks: BackgroundT
     if not require_login(request):
         return HTMLResponse(status_code=401)
     if is_running():
-        return HTMLResponse(content='<p class="text-yellow-400 text-xs">Scraping já em execução...</p>')
+        return HTMLResponse(content='<p class="text-yellow-400 text-xs">Scraping j&#225; em execu&#231;&#227;o...</p>')
     form = await request.form()
     site_name = str(form.get("site_name", "")).strip()
     transaction_type = str(form.get("transaction_type", "")).strip()
+    force_images = form.get("force_images") in ("1", "on", "true")
 
     conn = get_connection()
     all_sites = [dict(r) for r in get_sites(conn, active_only=True)]
@@ -54,6 +72,10 @@ async def trigger_scraping_sites(request: Request, background_tasks: BackgroundT
 
     if not sites:
         return HTMLResponse(content='<p class="text-red-400 text-xs">Nenhum site encontrado.</p>')
+
+    if force_images:
+        for s in sites:
+            s["force_images"] = True
 
     background_tasks.add_task(run_scraping, sites_config=sites)
     return HTMLResponse(content=_SSE_HTML)
@@ -72,19 +94,26 @@ async def scraping_stream(request: Request):
                 break
             try:
                 msg = await asyncio.wait_for(queue.get(), timeout=30.0)
-                if msg == "__DONE__":
-                    yield {
-                        "data": (
-                            "<p class='text-gray-400'>✓ Concluído</p>"
-                            "<span hx-get='/configuracoes/site-groups-body'"
-                            "      hx-trigger='load'"
-                            "      hx-target='#site-groups-body'"
-                            "      hx-swap='innerHTML'></span>"
-                        )
-                    }
-                    break
-                yield {"data": f"<p>{msg}</p>"}
+                yield {"data": msg}
+                # Detect completion from the structured event
+                try:
+                    if json.loads(msg).get("type") == "done":
+                        break
+                except (json.JSONDecodeError, AttributeError):
+                    pass
             except asyncio.TimeoutError:
                 yield {"data": ""}  # keepalive ping
 
     return EventSourceResponse(event_generator())
+
+
+@router.get("/scraping/last-run", response_class=HTMLResponse)
+async def scraping_last_run(request: Request):
+    if not require_login(request):
+        return HTMLResponse(status_code=401)
+    conn = get_connection()
+    run = get_last_run(conn)
+    conn.close()
+    return templates.TemplateResponse(
+        request, "partials/_scraping_log_table.html", {"run": run}
+    )

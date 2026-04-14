@@ -1,7 +1,78 @@
 import sqlite3
 import os
-import yaml
 from typing import Optional
+
+# Initial site seed — loaded into the DB on first init_db() call.
+# After that the DB is the source of truth; URLs/active flags are editable via UI.
+# platform is never user-editable, so it is always synced from here on init.
+_SITES_SEED = [
+    # ── Aluguel ────────────────────────────────────────────────────────────────
+    dict(name="dois_irmaos",      platform="kenlo",     transaction_type="aluguel", max_pages=20,
+         url="https://www.imobiliariadoisirmaos.com.br/imoveis/para-alugar"),
+    dict(name="sao_miguel",       platform="voa",       transaction_type="aluguel",
+         url="https://www.saomiguelimobiliaria.com.br/imoveis/para-locacao"),
+    dict(name="becker",           platform="becker",    transaction_type="aluguel",
+         url="https://www.empreendimentosbecker.com.br/Imoveis/Busca/1/0?carteira=L&tipo%5B%5D=3&tipo%5B%5D=9&tipo%5B%5D=78&tipo%5B%5D=76&tipo%5B%5D=14&tipo%5B%5D=1&tipo%5B%5D=71&tipo%5B%5D=82&cidade=8&dormitorios=0&garagem=0&valor_l=0&valor_v=0&area=0&codigo="),
+    dict(name="felippe_alfredo",  platform="jetimob",   transaction_type="aluguel",
+         url='https://www.felippealfredoimobiliaria.com.br/alugar/apartamento?ordenacao=%22mais-recente%22&pagina=1&tipos=%22apartamento%2Ccasa%22&transacao=%22alugar%22'),
+    dict(name="adriana",          platform="smartimob", transaction_type="aluguel",
+         url="https://www.adrianacorretoradeimoveis.com.br/imoveis/tipo-apartamento,apartamento-terreo,casa,sobrado/cidade-dois-irmaos,morro-reuter/transacao-locacao/ordenacao-newest"),
+    dict(name="investir",         platform="vista",     transaction_type="aluguel",
+         url="https://www.investirimoveisdi.com.br/busca/alugar/cidade/todas/categoria/apartamento_casa-sobrado_terrenos/data/desc/1/"),
+    dict(name="habbitar",         platform="jetimob",   transaction_type="aluguel",
+         url="https://habbitar.com.br/alugar/imoveis?profile%5B0%5D=1&typeArea=total_area&floorComparision=equals&sort=-is_price_shown%2Cby_calculated_price&offset=1&limit=21"),
+    dict(name="lis",              platform="lis",       transaction_type="aluguel",
+         url="https://www.imobiliarialis.com.br/imoveis/para-alugar?ordenar=recentes"),
+    dict(name="identita",         platform="imobibrasil", transaction_type="aluguel",
+         url="https://www.identitaimoveis.com.br/imovel/locacao/todos/dois-irmaos"),
+    dict(name="platano",          platform="smtximob",  transaction_type="aluguel",
+         url="https://www.platanoimoveis.com.br/imoveis/cidade-dois-irmaos,morro-reuter/transacao-locacao"),
+    dict(name="joel_blume",       platform="joelblume", transaction_type="aluguel",
+         url="https://www.joelblumecorretor.com.br/imoveis/para-alugar/todos/dois-irmaos/"),
+    dict(name="conecta_aluguel",  platform="conecta",   transaction_type="aluguel",
+         url="https://www.conectaimoveisdi.com.br/imoveis/aluguel/dois-irmaos/-/-/-?filtros&pagination=1"),
+    # ── Compra ─────────────────────────────────────────────────────────────────
+    dict(name="dois_irmaos_compra",     platform="kenlo",     transaction_type="compra", max_pages=20,
+         url="https://www.imobiliariadoisirmaos.com.br/imoveis/a-venda/casa/dois-irmaos?quartos=2+"),
+    dict(name="sao_miguel_compra",      platform="voa",       transaction_type="compra",
+         url="https://www.saomiguelimobiliaria.com.br/imoveis/?disponibilidade=a-venda&categoria=casa&cidade=dois-irmaos&bairro=&area-min=&area-max=&finalidade=Residencial&quartos=2&order=padrao"),
+    dict(name="becker_compra",          platform="becker",    transaction_type="compra",
+         url="https://www.empreendimentosbecker.com.br/Imoveis/Busca/1/0?carteira=V&tipo%5B%5D=1&tipo%5B%5D=71&cidade=8&dormitorios=0&garagem=0&valor_l=0&valor_v=0&area=0&codigo="),
+    dict(name="felippe_alfredo_compra", platform="jetimob",   transaction_type="compra",
+         url='https://www.felippealfredoimobiliaria.com.br/venda/rio-grande-do-sul/dois-irmaos/casa/com-mais-de-5-quartos?tipos=%22casa%22&quartos=%223%2C4%2C5%2C2%22&ordenacao=%22mais-recente%22&pagina=1&transacao=%22venda%22&endereco=%5B%7B%22label%22%3A%22Dois+Irm%C3%A3os+-+RS%22%2C%22valor%22%3A%7B%22cidade%22%3A7650%2C%22estado%22%3A23%7D%2C%22cidade%22%3A%22dois-irmaos%22%2C%22estado%22%3A%22rio-grande-do-sul%22%7D%5D'),
+    dict(name="investir_compra",        platform="vista",     transaction_type="compra",
+         url="https://www.investirimoveisdi.com.br/busca/comprar/cidade/todas/bairros/beira-rio-dois-irmaos_bela-vista-dois-irmaos_centro-dois-irmaos_floresta-dois-irmaos_industrial-dois-irmaos_moinho-velho-dois-irmaos_primavera-dois-irmaos_sao-joao-dois-irmaos_sete-de-setembro-dois-irmaos_travessao-dois-irmaos_uniao-dois-irmaos_vale-direito-dois-irmaos_vale-esquerdo-dois-irmaos_vale-verde-dois-irmaos_centro-morro-reuter_planalto-morro-reuter/categoria/casa-sobrado/quartos/2/1/"),
+    dict(name="habbitar_compra",        platform="jetimob",   transaction_type="compra",
+         url="https://habbitar.com.br/comprar/casa/dois-irmaos-rs?by_type_slug=casa&typeArea=built_area&floorComparision=equals&bedrooms=2&profile%5B0%5D=1&sort=-created_at%2Cid&offset=1&limit=100"),
+    dict(name="lis_compra",             platform="lis",       transaction_type="compra",
+         url="https://www.imobiliarialis.com.br/imoveis/a-venda/casa+chacara?quartos=2+&preco-de-venda=0~1500000"),
+    dict(name="adriana_compra",         platform="smartimob", transaction_type="compra",
+         url="https://www.adrianacorretoradeimoveis.com.br/imoveis/tipo-casa,sitio-chacara/cidade-dois-irmaos,morro-reuter/transacao-venda/preco-max-1500000/ordenacao-newest"),
+    dict(name="identita_compra",        platform="imobibrasil", transaction_type="compra",
+         url="https://www.identitaimoveis.com.br/imovel/venda/casa-sobrado/dois-irmaos/?&dormitorios=22&suites=&banheiros=&vagas=&vmi=&vma=venda0&areaMinima=venda1&areaMaxima=venda2&pag=1"),
+    dict(name="platano_compra",         platform="smtximob",  transaction_type="compra",
+         url="https://www.platanoimoveis.com.br/imoveis/cidade-dois-irmaos/tipo-casa,casa-em-condominio,chacara-sitio/transacao-venda"),
+    dict(name="joel_blume_compra",      platform="joelblume", transaction_type="compra",
+         url="https://www.joelblumecorretor.com.br/imoveis/?disponibilidade=a-venda&categoria=casa&cidade=dois-irmaos&bairro=&area-min=&area-max=&finalidade=&quartos=3&order=padr%C3%A3o"),
+    dict(name="conecta_compra",         platform="conecta",   transaction_type="compra",
+         url="https://www.conectaimoveisdi.com.br/imoveis/venda/dois-irmaos/-/-/casa?filtros&min=0&max=4600000&ordem=desc-inclusao&pagination=1"),
+    dict(name="dmk_compra",             platform="imoview",   transaction_type="compra",
+         url="https://www.dmkimoveis.com.br/venda/casa+chacara/dois-irmaos/?&pagina=1"),
+    dict(name="dapper_compra",          platform="dapper",    transaction_type="compra",
+         url="https://www.dapperimoveis.com.br/imoveis/vendas#tipo_negociacao=2&tipo_imovel=54,62,59&cidade=Dois%20Irm%C3%A3os&valor_ate=1500000&currentPage=1&ordem=2"),
+    dict(name="munique_compra",         platform="munique",   transaction_type="compra",
+         url="https://www.muniqueimoveis.com.br/busca?finalidade=venda&categorias%5B%5D=1&categorias%5B%5D=20&categorias%5B%5D=26&cidades%5B%5D=73&maxPreco=1500000"),
+    dict(name="postai_compra",          platform="tecimob",   transaction_type="compra",
+         url="https://www.postaiimoveis.com.br/imoveis/tipo=casa-em-condominio,casas-e-sobrados&transacao=vendas&termo=Dois%20Irm%C3%A3os"),
+    dict(name="confianca_compra",       platform="tecimob",   transaction_type="compra",
+         url="https://confiancadimoveis.com.br/imoveis/tipo=casas-e-sobrados%26transacao=venda%26cidade=10-dois-irmos%26valor_maximo=1500000.00/1/sort=menor-valor"),
+    dict(name="confianca2_compra",      platform="tecimob",   transaction_type="compra",
+         url="https://confiancadimoveis.com.br/imoveis/tipo=chacaras-fazendas-e-sitios%26transacao=venda%26cidade=10-dois-irmos%26valor_maximo=1500000/1/sort=menor-valor"),
+    dict(name="larissa_compra",         platform="conecta",   transaction_type="compra",
+         url="https://www.larissadillimoveis.com.br/imoveis/venda/dois-irmaos/-/-/casa"),
+    dict(name="conecta_compra_morro_reuter", platform="conecta", transaction_type="compra",
+         url="https://www.conectaimoveisdi.com.br/imoveis/venda/morro-reuter/-/-/casa?filtros&min=0&max=4600000&ordem=desc-inclusao&pagination=1"),
+]
 
 _DB_PATH: str = ""
 
@@ -142,7 +213,8 @@ def init_db(path: str, conn: Optional[sqlite3.Connection] = None) -> None:
             removed_count    INTEGER DEFAULT 0,
             duration_seconds REAL,
             status           TEXT DEFAULT 'running',
-            log              TEXT DEFAULT ''
+            log              TEXT DEFAULT '',
+            sites_log        TEXT
         );
 
         CREATE TABLE IF NOT EXISTS workspace (
@@ -182,65 +254,79 @@ def init_db(path: str, conn: Optional[sqlite3.Connection] = None) -> None:
     """)
     c.commit()
 
-    # Seed sites table from sites.yaml. On first run (table empty) inserts all rows.
-    # On subsequent runs, inserts new sites and updates the platform column for
-    # existing ones (platform is not user-editable via UI, so always sync from YAML).
-    yaml_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config", "sites.yaml")
-    if os.path.exists(yaml_path):
-        with open(yaml_path, encoding="utf-8") as f:
-            data = yaml.safe_load(f)
-        for site in data.get("sites", []):
-            c.execute(
-                "INSERT OR IGNORE INTO sites (name, url, platform, transaction_type, active, max_pages) "
-                "VALUES (?,?,?,?,?,?)",
-                [
-                    site["name"], site["url"], site["platform"],
-                    site.get("transaction_type", "aluguel"),
-                    1 if site.get("active", True) else 0,
-                    site.get("max_pages"),
-                ],
-            )
-            # Always sync platform from YAML (user cannot change it via UI)
-            c.execute(
-                "UPDATE sites SET platform=? WHERE name=? AND platform != ?",
-                [site["platform"], site["name"], site["platform"]],
-            )
-        c.commit()
+    # Seed sites on first init (INSERT OR IGNORE skips existing rows).
+    # platform is always synced from _SITES_SEED since it is not user-editable.
+    for site in _SITES_SEED:
+        c.execute(
+            "INSERT OR IGNORE INTO sites (name, url, platform, transaction_type, active, max_pages) "
+            "VALUES (?,?,?,?,1,?)",
+            [site["name"], site["url"], site["platform"],
+             site["transaction_type"], site.get("max_pages")],
+        )
+        c.execute(
+            "UPDATE sites SET platform=? WHERE name=? AND platform != ?",
+            [site["platform"], site["name"], site["platform"]],
+        )
+    c.commit()
+
+    # Migrations: add columns that didn't exist in older DBs
+    if path != ":memory:":
+        existing_cols = {r[1] for r in c.execute("PRAGMA table_info(runs)")}
+        if "sites_log" not in existing_cols:
+            c.execute("ALTER TABLE runs ADD COLUMN sites_log TEXT")
+            c.commit()
 
 
 # ── Property queries ──────────────────────────────────────────────────────────
 
-_SORT_COLUMNS = {"first_seen", "last_seen", "price", "neighborhood", "bedrooms", "category"}
+_SORT_COLUMNS = {"first_seen", "last_seen", "price", "neighborhood", "bedrooms", "category", "area_m2"}
 
 
 def get_imoveis(conn: sqlite3.Connection, transaction_type: str,
                 site: str = "", status: str = "", neighborhood: str = "",
                 category: str = "", price_min: float = 0, price_max: float = 0,
                 sort: str = "first_seen", sort_dir: str = "desc",
+                include_inactive: bool = False,
                 ) -> list:
-    sql = "SELECT * FROM imoveis WHERE transaction_type = ? AND is_active = 1"
+    reviewed_col = f"last_reviewed_{transaction_type}_at"
+    sql = f"""
+        SELECT i.*,
+          CASE WHEN i.is_active = 0 THEN 'removed'
+               ELSE (SELECT change_flag FROM historico
+                     WHERE imovel_id = i.id
+                       AND scraped_at > COALESCE(
+                         (SELECT {reviewed_col} FROM workspace WHERE id=1),
+                         '1970-01-01'
+                       )
+                     ORDER BY scraped_at DESC LIMIT 1)
+          END AS latest_change_flag
+        FROM imoveis i
+        WHERE i.transaction_type = ?
+    """
+    if not include_inactive:
+        sql += " AND i.is_active = 1"
     params: list = [transaction_type]
     if site:
-        sql += " AND source_site = ?"
+        sql += " AND i.source_site = ?"
         params.append(site)
     if status:
-        sql += " AND status = ?"
+        sql += " AND i.status = ?"
         params.append(status)
     if neighborhood:
-        sql += " AND neighborhood = ?"
+        sql += " AND i.neighborhood = ?"
         params.append(neighborhood)
     if category:
-        sql += " AND category = ?"
+        sql += " AND i.category = ?"
         params.append(category)
     if price_min:
-        sql += " AND price >= ?"
+        sql += " AND i.price >= ?"
         params.append(price_min)
     if price_max:
-        sql += " AND price <= ?"
+        sql += " AND i.price <= ?"
         params.append(price_max)
     col = sort if sort in _SORT_COLUMNS else "first_seen"
     direction = "ASC" if sort_dir.lower() == "asc" else "DESC"
-    sql += f" ORDER BY {col} {direction}"
+    sql += f" ORDER BY i.{col} {direction}"
     return conn.execute(sql, params).fetchall()
 
 
@@ -354,6 +440,49 @@ def get_runs(conn: sqlite3.Connection, limit: int = 50) -> list:
 
 def get_run(conn: sqlite3.Connection, run_id: str):
     return conn.execute("SELECT * FROM runs WHERE run_id=?", [run_id]).fetchone()
+
+
+def get_last_run_per_base(conn: sqlite3.Connection, limit: int = 10) -> dict:
+    """
+    Return the most recent run result for each base imobiliária.
+    Scans the last `limit` completed runs and picks the first occurrence per base.
+    Result: {base: {base, display, aluguel, compra, ts, has_error, total_duration, run_date}}
+    """
+    import json as _json
+    rows = conn.execute(
+        "SELECT run_date, sites_log FROM runs "
+        "WHERE status IN ('completed','partial') AND sites_log IS NOT NULL "
+        "ORDER BY run_date DESC LIMIT ?",
+        [limit],
+    ).fetchall()
+    per_base: dict = {}
+    for row in rows:
+        try:
+            entries = _json.loads(row["sites_log"])
+        except Exception:
+            continue
+        run_date = row["run_date"]
+        for entry in entries:
+            base = entry.get("base")
+            if base and base not in per_base:
+                per_base[base] = {**entry, "run_date": run_date}
+    return per_base
+
+
+def get_last_run(conn: sqlite3.Connection) -> Optional[dict]:
+    """Return the most recent completed run with sites_log parsed from JSON."""
+    import json as _json
+    row = conn.execute(
+        "SELECT * FROM runs WHERE status != 'running' ORDER BY run_date DESC LIMIT 1"
+    ).fetchone()
+    if not row:
+        return None
+    result = dict(row)
+    try:
+        result["sites_log"] = _json.loads(result["sites_log"]) if result.get("sites_log") else []
+    except Exception:
+        result["sites_log"] = []
+    return result
 
 
 # ── Sites ────────────────────────────────────────────────────────────────────

@@ -75,7 +75,7 @@ def test_build_log_line_with_changes():
 def test_build_log_line_no_changes():
     line = build_run_log_line("becker", found=18, new=0, updated=0, error=None)
     assert "becker" in line
-    assert "0 mudanças" in line
+    assert "0 mudancas" in line
 
 
 def test_build_log_line_error():

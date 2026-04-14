@@ -1,0 +1,85 @@
+{% if run and run.sites_log %}
+<p class="text-xs text-gray-500 mb-2">
+  Último scraping: {{ run.run_date[:10] }} às {{ run.run_date[11:16] }}
+  · {{ run.duration_seconds | int }}s
+  · <span class="{% if run.status == 'completed' %}text-green-400{% elif run.status == 'partial' %}text-yellow-400{% else %}text-red-400{% endif %}">{{ run.status }}</span>
+</p>
+<table class="w-full text-sm border-collapse">
+  <thead>
+    <tr class="text-left text-gray-500 text-xs uppercase tracking-wide border-b border-gray-700">
+      <th class="py-1.5 px-3 font-medium w-16">Hora</th>
+      <th class="py-1.5 px-3 font-medium">Imobiliária</th>
+      <th class="py-1.5 px-3 font-medium">Aluguel</th>
+      <th class="py-1.5 px-3 font-medium">Compra</th>
+      <th class="py-1.5 px-3 font-medium w-24">Status</th>
+    </tr>
+  </thead>
+  <tbody id="scraping-log-body">
+    {% for row in run.sites_log %}
+    <tr class="border-b border-gray-700/40" id="log-row-{{ row.base }}">
+      <td class="py-1.5 px-3 text-gray-500 font-mono text-xs">{{ row.ts or '—' }}</td>
+      <td class="py-1.5 px-3 text-gray-200 font-medium">{{ row.display }}</td>
+
+      {# Aluguel cell #}
+      <td class="py-1.5 px-3 text-xs" id="log-aluguel-{{ row.base }}">
+        {% set a = row.aluguel %}
+        {% if a %}
+          {% if a.error %}
+            <span class="text-red-400" title="{{ a.error }}">erro</span>
+          {% else %}
+            <span class="text-gray-300">{{ a.found }}</span>
+            {% if a.new %}<span class="text-green-400 font-medium"> +{{ a.new }}</span>{% endif %}
+            {% if a.updated %}<span class="text-amber-400"> ~{{ a.updated }}</span>{% endif %}
+            {% if a.removed %}<span class="text-red-400"> -{{ a.removed }}</span>{% endif %}
+          {% endif %}
+        {% else %}
+          <span class="text-gray-600">—</span>
+        {% endif %}
+      </td>
+
+      {# Compra cell #}
+      <td class="py-1.5 px-3 text-xs" id="log-compra-{{ row.base }}">
+        {% set c = row.compra %}
+        {% if c %}
+          {% if c.error %}
+            <span class="text-red-400" title="{{ c.error }}">erro</span>
+          {% else %}
+            <span class="text-gray-300">{{ c.found }}</span>
+            {% if c.new %}<span class="text-green-400 font-medium"> +{{ c.new }}</span>{% endif %}
+            {% if c.updated %}<span class="text-amber-400"> ~{{ c.updated }}</span>{% endif %}
+            {% if c.removed %}<span class="text-red-400"> -{{ c.removed }}</span>{% endif %}
+          {% endif %}
+        {% else %}
+          <span class="text-gray-600">—</span>
+        {% endif %}
+      </td>
+
+      {# Status cell #}
+      <td class="py-1.5 px-3 text-xs" id="log-status-{{ row.base }}">
+        {% if row.has_error %}
+          <span class="text-red-400">✗</span>
+        {% else %}
+          <span class="text-green-400">✓</span>
+        {% endif %}
+        <span class="text-gray-500">{{ row.total_duration }}s</span>
+      </td>
+    </tr>
+    {% endfor %}
+
+    {# Summary row #}
+    <tr class="border-t border-gray-600">
+      <td colspan="5" class="py-1.5 px-3 text-gray-500 text-xs">
+        {{ run.total_found }} encontrados
+        · <span class="text-green-400">+{{ run.new_count }} novos</span>
+        {% if run.updated_count %} · <span class="text-amber-400">~{{ run.updated_count }} atualizados</span>{% endif %}
+        {% if run.removed_count %} · <span class="text-red-400">-{{ run.removed_count }} removidos</span>{% endif %}
+        · {{ run.duration_seconds | int }}s total
+      </td>
+    </tr>
+  </tbody>
+</table>
+{% elif run %}
+<p class="text-xs text-gray-600">Último run não possui dados estruturados.</p>
+{% else %}
+<p class="text-xs text-gray-600">Nenhum scraping executado ainda.</p>
+{% endif %}

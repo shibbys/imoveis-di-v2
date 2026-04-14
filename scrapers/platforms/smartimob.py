@@ -70,12 +70,15 @@ class SmartimobScraper(BaseScraper):
                 async with page.expect_navigation(timeout=15000):
                     await card.click()
                 source_url = page.url
-                await page.go_back(wait_until="networkidle", timeout=15000)
-                await page.wait_for_timeout(500)
 
                 if not source_url or source_url == page_url or source_url in seen_urls:
+                    await page.go_back(wait_until="networkidle", timeout=15000)
+                    await page.wait_for_timeout(500)
                     continue
                 seen_urls.add(source_url)
+
+                await page.go_back(wait_until="networkidle", timeout=15000)
+                await page.wait_for_timeout(500)
 
                 results.append(PropertyData(
                     source_site=self.site_name,

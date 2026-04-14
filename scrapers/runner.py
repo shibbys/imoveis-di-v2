@@ -1,12 +1,18 @@
 import asyncio
 import json
+import re
 import sys
 import threading
+import time
 import uuid
-from datetime import datetime, timezone
+from collections import defaultdict
+from datetime import datetime, timezone, timedelta
+
+_BRT = timezone(timedelta(hours=-3))  # Brasília Time (UTC-3)
 from typing import Callable, Optional
 
 from scrapers.base import PropertyData
+from scrapers.enrichment import enrich_properties_batch
 from scrapers.registry import get_scraper
 from storage.database import get_connection, get_sites
 
@@ -24,6 +30,24 @@ def get_event_queue() -> asyncio.Queue:
 
 def is_running() -> bool:
     return _running
+
+
+def _base_name(site_name: str) -> str:
+    """Strip _aluguel / _compra suffix to get the imobiliária base name."""
+    return re.sub(r"_(compra|aluguel)$", "", site_name)
+
+
+def _site_display(base: str) -> str:
+    return base.replace("_", " ").title()
+
+
+def _sort_sites(sites: list) -> list:
+    """Group sites by base imobiliária; aluguel before compra within each group."""
+    tt_order = {"aluguel": 0, "compra": 1}
+    return sorted(sites, key=lambda s: (
+        _base_name(s["name"]),
+        tt_order.get(s.get("transaction_type", ""), 2),
+    ))
 
 
 def detect_changes(conn, prop: PropertyData) -> tuple:
@@ -50,7 +74,6 @@ def detect_changes(conn, prop: PropertyData) -> tuple:
     ]
     for field_name, new_val in tracked:
         old_val = last[field_name]
-        # Only flag as change if both values are not None and they differ
         if old_val is not None and new_val is not None and old_val != new_val:
             changes[field_name] = {"old": old_val, "new": new_val}
 
@@ -59,7 +82,7 @@ def detect_changes(conn, prop: PropertyData) -> tuple:
 
 def _save_property(conn, prop: PropertyData, run_id: str,
                     change_flag: Optional[str], changes: dict) -> None:
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(_BRT).isoformat()
     conn.execute("""
         INSERT INTO imoveis (
             id, transaction_type, source_site, source_url, title, city,
@@ -100,7 +123,6 @@ def _save_property(conn, prop: PropertyData, run_id: str,
             change_flag, json.dumps(changes)
         ])
 
-    # Replace images
     conn.execute("DELETE FROM imovel_imagens WHERE imovel_id=?", [prop.id])
     for i, url in enumerate(prop.images):
         conn.execute(
@@ -112,11 +134,11 @@ def _save_property(conn, prop: PropertyData, run_id: str,
 def build_run_log_line(site_name: str, found: int, new: int,
                         updated: int, removed: int = 0,
                         error: Optional[str] = None) -> str:
-    now = datetime.now(timezone.utc).strftime("%H:%M:%S")
+    now = datetime.now(_BRT).strftime("%H:%M:%S")
     if error:
-        return f"[{now}] {site_name} → ERRO: {error[:80]}"
+        return f"[{now}] {site_name} -> ERRO: {error[:80]}"
     if new == 0 and updated == 0 and removed == 0:
-        return f"[{now}] {site_name} → {found} encontrados, 0 mudanças"
+        return f"[{now}] {site_name} -> {found} encontrados, 0 mudancas"
     parts = []
     if new:
         parts.append(f"{new} novos")
@@ -124,7 +146,7 @@ def build_run_log_line(site_name: str, found: int, new: int,
         parts.append(f"{updated} atualizados")
     if removed:
         parts.append(f"{removed} removidos")
-    return f"[{now}] {site_name} → {found} encontrados, {', '.join(parts)}"
+    return f"[{now}] {site_name} -> {found} encontrados, {', '.join(parts)}"
 
 
 async def _scraping_body(
@@ -137,7 +159,7 @@ async def _scraping_body(
     """
     Core scraping logic. Decoupled from the event queue so it can run in any
     event loop (including a dedicated ProactorEventLoop thread on Windows).
-    put_event() is a sync callback — call it instead of await queue.put().
+    put_event() is a sync callback — emits JSON-serialised event dicts.
     """
     global _running
 
@@ -148,30 +170,61 @@ async def _scraping_body(
     error_count = 0
     log_lines = []
 
+    # Pre-compute which transaction types are expected per base imobiliária
+    base_expected_tt: dict = defaultdict(set)
+    base_display_map: dict = {}
+    for site in sites_config:
+        base = _base_name(site["name"])
+        base_expected_tt[base].add(site.get("transaction_type", "aluguel"))
+        base_display_map[base] = _site_display(base)
+
+    # Accumulate per-base results for persistent sites_log
+    base_results: dict = {}
+    base_done_tt: dict = defaultdict(set)
+
     try:
         for site in sites_config:
+            base = _base_name(site["name"])
+            tt = site.get("transaction_type", "aluguel")
+            display = base_display_map[base]
+
+            if base not in base_results:
+                base_results[base] = {
+                    "base": base, "display": display,
+                    "aluguel": None, "compra": None,
+                    "ts": None, "has_error": False, "total_duration": 0,
+                }
+
+            put_event(json.dumps({
+                "type": "site_start",
+                "base": base, "display": display,
+                "transaction_type": tt,
+            }))
+
             site_new = 0
             site_updated = 0
             site_removed = 0
             error_msg = None
             properties = []
+            site_t0 = time.monotonic()
 
             try:
                 scraper = get_scraper(site)
                 properties = await scraper.scrape()
                 total_found += len(properties)
 
+                new_ids: set[str] = set()
                 for prop in properties:
                     flag, changes = detect_changes(conn, prop)
                     if flag == "new":
                         site_new += 1
                         total_new += 1
+                        new_ids.add(prop.id)
                     elif flag == "updated":
                         site_updated += 1
                         total_updated += 1
                     _save_property(conn, prop, run_id, flag, changes)
 
-                # Find active properties for this site that weren't seen this run
                 scraped_ids = {prop.id for prop in properties}
                 active_rows = conn.execute(
                     "SELECT id FROM imoveis WHERE source_site=? AND is_active=1",
@@ -179,7 +232,7 @@ async def _scraping_body(
                 ).fetchall()
                 for row in active_rows:
                     if row["id"] not in scraped_ids:
-                        now = datetime.now(timezone.utc).isoformat()
+                        now = datetime.now(_BRT).isoformat()
                         conn.execute(
                             "UPDATE imoveis SET is_active=0, last_seen=? WHERE id=?",
                             [now, row["id"]]
@@ -198,32 +251,130 @@ async def _scraping_body(
 
                 conn.commit()
 
+                # Enrichment phase: fetch full gallery for new (or all if forced)
+                force = site.get("force_images", False)
+                enrich_props = properties if force else [p for p in properties if p.id in new_ids]
+                if enrich_props:
+                    enrich_items = [
+                        {
+                            "id": p.id,
+                            "site_name": p.source_site,
+                            "platform": site.get("platform", ""),
+                            "url": p.source_url,
+                        }
+                        for p in enrich_props
+                    ]
+                    enrich_total = len(enrich_items)
+                    put_event(json.dumps({
+                        "type": "enrich_start",
+                        "base": base, "display": display,
+                        "total": enrich_total,
+                    }))
+
+                    def _on_progress(imovel_id: str, current: int, total: int) -> None:
+                        put_event(json.dumps({
+                            "type": "enrich_progress",
+                            "base": base,
+                            "current": current,
+                            "total": total,
+                        }))
+
+                    enriched = await enrich_properties_batch(enrich_items, _on_progress)
+
+                    enriched_count = 0
+                    for imovel_id, images in enriched.items():
+                        if images:
+                            conn.execute(
+                                "DELETE FROM imovel_imagens WHERE imovel_id=?", [imovel_id]
+                            )
+                            for i, url in enumerate(images):
+                                conn.execute(
+                                    "INSERT INTO imovel_imagens (imovel_id, url, position) VALUES (?,?,?)",
+                                    [imovel_id, url, i],
+                                )
+                            enriched_count += 1
+                    conn.commit()
+
+                    put_event(json.dumps({
+                        "type": "enrich_done",
+                        "base": base, "display": display,
+                        "enriched": enriched_count,
+                        "total": enrich_total,
+                    }))
+
             except Exception as e:
-                error_msg = str(e)[:80]
+                error_msg = str(e)[:120]
                 error_count += 1
 
-            line = build_run_log_line(
+            duration = round(time.monotonic() - site_t0, 1)
+            ts = datetime.now(_BRT).strftime("%H:%M:%S")
+
+            site_result = {
+                "found": len(properties),
+                "new": site_new,
+                "updated": site_updated,
+                "removed": site_removed,
+                "duration": duration,
+                "error": error_msg,
+            }
+
+            base_results[base][tt] = site_result
+            base_results[base]["total_duration"] = round(
+                base_results[base]["total_duration"] + duration, 1
+            )
+            if error_msg:
+                base_results[base]["has_error"] = True
+            if base_results[base]["ts"] is None:
+                base_results[base]["ts"] = ts
+
+            base_done_tt[base].add(tt)
+
+            put_event(json.dumps({
+                "type": "site_done",
+                "base": base, "display": display,
+                "transaction_type": tt,
+                **site_result,
+                "ts": ts,
+            }))
+
+            # Emit base_done once all expected transaction types are finished
+            if base_done_tt[base] >= base_expected_tt[base]:
+                br = base_results[base]
+                put_event(json.dumps({
+                    "type": "base_done",
+                    "base": base, "display": display,
+                    "has_error": br["has_error"],
+                    "total_duration": br["total_duration"],
+                }))
+
+            log_lines.append(build_run_log_line(
                 site["name"],
                 found=len(properties),
                 new=site_new,
                 updated=site_updated,
                 removed=site_removed,
                 error=error_msg,
-            )
-            log_lines.append(line)
-            put_event(line)
+            ))
 
     finally:
-        duration = (datetime.now(timezone.utc) - start_time).total_seconds()
-        now_str = datetime.now(timezone.utc).strftime("%H:%M:%S")
+        duration = (datetime.now(_BRT) - start_time).total_seconds()
+        now_str = datetime.now(_BRT).strftime("%H:%M:%S")
         summary = (
-            f"[{now_str}] CONCLUÍDO → {len(sites_config)} sites, "
-            f"{total_found} imóveis, {total_new} novos, "
+            f"[{now_str}] CONCLUIDO -> {len(sites_config)} sites, "
+            f"{total_found} imoveis, {total_new} novos, "
             f"{total_updated} atualizados, {total_removed} removidos ({duration:.0f}s)"
         )
         log_lines.append(summary)
-        put_event(summary)
-        put_event("__DONE__")
+
+        put_event(json.dumps({
+            "type": "done",
+            "total_found": total_found,
+            "total_new": total_new,
+            "total_updated": total_updated,
+            "total_removed": total_removed,
+            "duration": round(duration),
+            "ts": now_str,
+        }))
 
         if error_count == len(sites_config):
             final_status = "failed"
@@ -235,10 +386,10 @@ async def _scraping_body(
         conn.execute("""
             UPDATE runs SET
                 status=?, total_found=?, new_count=?,
-                updated_count=?, removed_count=?, duration_seconds=?, log=?
+                updated_count=?, removed_count=?, duration_seconds=?, log=?, sites_log=?
             WHERE run_id=?
         """, [final_status, total_found, total_new, total_updated, total_removed,
-              duration, "\n".join(log_lines), run_id])
+              duration, "\n".join(log_lines), json.dumps(list(base_results.values())), run_id])
         conn.commit()
         conn.close()
         _running = False
@@ -246,8 +397,8 @@ async def _scraping_body(
 
 async def run_scraping(sites_config: Optional[list] = None) -> None:
     """
-    Main scraping orchestrator. Loads sites from sites.yaml if not provided.
-    Streams log lines to the global event queue.
+    Main scraping orchestrator. Loads active sites from the database if not provided.
+    Streams structured JSON events to the global event queue.
 
     On Windows, uvicorn may run SelectorEventLoop which blocks Playwright's
     subprocess creation. The workaround: run _scraping_body in a daemon thread
@@ -269,13 +420,16 @@ async def run_scraping(sites_config: Optional[list] = None) -> None:
         datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         + "_" + uuid.uuid4().hex[:6]
     )
-    start_time = datetime.now(timezone.utc)
+    start_time = datetime.now(_BRT)
 
     if sites_config is None:
         cfg_conn = get_connection()
         rows = get_sites(cfg_conn, active_only=True)
         cfg_conn.close()
         sites_config = [dict(row) for row in rows]
+
+    # Sort: group by base imobiliária, aluguel before compra
+    sites_config = _sort_sites(sites_config)
 
     conn = get_connection()
     conn.execute(
@@ -285,8 +439,6 @@ async def run_scraping(sites_config: Optional[list] = None) -> None:
     conn.commit()
 
     if sys.platform == "win32":
-        # Windows: spawn a thread with its own ProactorEventLoop so Playwright
-        # can create subprocesses. Events are sent back via call_soon_threadsafe.
         def _thread() -> None:
             loop = asyncio.ProactorEventLoop()
             asyncio.set_event_loop(loop)

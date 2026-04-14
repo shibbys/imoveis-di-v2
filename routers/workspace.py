@@ -5,7 +5,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from storage.database import (
     get_connection, mark_reviewed, update_schedule, get_workspace,
-    get_sites, update_site, get_site_counts,
+    get_sites, update_site, get_site_counts, get_last_run_per_base,
 )
 from routers.auth import require_login
 
@@ -21,6 +21,7 @@ def _build_site_groups(conn) -> OrderedDict:
     """Group sites by base imobiliária name (stripping _compra/_aluguel suffix)."""
     sites = get_sites(conn)
     counts = get_site_counts(conn)
+    last_runs = get_last_run_per_base(conn)
     groups: OrderedDict = OrderedDict()
     for row in sites:
         site = dict(row)
@@ -32,6 +33,7 @@ def _build_site_groups(conn) -> OrderedDict:
                 "display": _site_display(base),
                 "aluguel": [],
                 "compra": [],
+                "last_run": last_runs.get(base),
             }
         tt = site.get("transaction_type", "")
         if tt in ("aluguel", "compra"):
@@ -49,6 +51,21 @@ async def site_groups_body(request: Request):
     conn.close()
     return templates.TemplateResponse(request, "partials/_site_groups_body.html",
                                       {"site_groups": site_groups})
+
+
+@router.get("/configuracoes/site-row/{base_name}", response_class=HTMLResponse)
+async def site_row_get(request: Request, base_name: str):
+    """Return a single refreshed <tr> for the configurações table (used by SSE base_done)."""
+    if not require_login(request):
+        return HTMLResponse(status_code=401)
+    conn = get_connection()
+    groups = _build_site_groups(conn)
+    conn.close()
+    group = groups.get(base_name)
+    if not group:
+        return HTMLResponse(status_code=404)
+    return templates.TemplateResponse(request, "partials/_config_site_row.html",
+                                      {"group": group})
 
 
 @router.post("/workspace/reviewed/{tipo}", response_class=HTMLResponse)

@@ -1,62 +1,102 @@
-<form id="filter-form"
-      hx-get="/partials/imoveis"
-      hx-target="#tabela-container"
-      hx-swap="innerHTML"
-      hx-trigger="submit">
-  <input type="hidden" name="tipo" value="{{ tipo }}">
-  <input type="hidden" id="sort-field" name="sort" value="first_seen">
-  <input type="hidden" id="sort-dir" name="sort_dir" value="desc">
-  <div class="space-y-3 text-sm">
-    <div>
-      <label class="block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wide">Imobiliária</label>
-      <select name="site" onchange="this.form.requestSubmit()"
-              class="w-full border border-gray-300 rounded px-2 py-1.5 text-sm bg-white">
-        <option value="">Todas</option>
-        {% for s in filter_options.sites %}
-        <option value="{{ s }}" {% if filters.get('site') == s %}selected{% endif %}>{{ s | site_name }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div>
-      <label class="block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wide">Status</label>
-      <select name="status" onchange="this.form.requestSubmit()"
-              class="w-full border border-gray-300 rounded px-2 py-1.5 text-sm bg-white">
-        <option value="">Todos</option>
-        {% for s in filter_options.statuses %}
-        <option value="{{ s }}" {% if filters.get('status') == s %}selected{% endif %}>{{ s }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div>
-      <label class="block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wide">Bairro</label>
-      <select name="neighborhood" onchange="this.form.requestSubmit()"
-              class="w-full border border-gray-300 rounded px-2 py-1.5 text-sm bg-white">
-        <option value="">Todos</option>
-        {% for n in filter_options.neighborhoods %}
-        <option value="{{ n }}" {% if filters.get('neighborhood') == n %}selected{% endif %}>{{ n }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div>
-      <label class="block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wide">Tipo</label>
-      <select name="category" onchange="this.form.requestSubmit()"
-              class="w-full border border-gray-300 rounded px-2 py-1.5 text-sm bg-white">
-        <option value="">Todos</option>
-        {% for c in filter_options.categories %}
-        <option value="{{ c }}" {% if filters.get('category') == c %}selected{% endif %}>{{ c }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div>
-      <label class="block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wide">Preço</label>
-      <div class="flex gap-1">
-        <input type="number" name="price_min" value="{{ filters.get('price_min') or '' }}"
-               placeholder="Min" min="0" onchange="this.form.requestSubmit()"
-               class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs">
-        <input type="number" name="price_max" value="{{ filters.get('price_max') or '' }}"
-               placeholder="Máx" min="0" onchange="this.form.requestSubmit()"
-               class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs">
-      </div>
-    </div>
+<div class="bg-white rounded-lg border border-gray-200 p-3">
+  <div class="flex items-center justify-between mb-3">
+    <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Filtros</span>
+    {% set active_count = (1 if filters.get('site') else 0) + (1 if filters.get('status') else 0) + (1 if filters.get('neighborhood') else 0) + (1 if filters.get('category') else 0) + (1 if filters.get('price_min') else 0) + (1 if filters.get('price_max') else 0) %}
+    {% if active_count > 0 %}
+    <span class="text-[10px] font-bold bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full leading-none">{{ active_count }}</span>
+    {% endif %}
   </div>
-</form>
+
+  <form id="filter-form"
+        hx-get="/partials/imoveis"
+        hx-target="#tabela-container"
+        hx-swap="innerHTML"
+        hx-trigger="submit">
+    <input type="hidden" name="tipo" value="{{ tipo }}">
+    <input type="hidden" id="sort-field" name="sort" value="first_seen">
+    <input type="hidden" id="sort-dir" name="sort_dir" value="desc">
+    <div class="space-y-2.5 text-sm">
+
+      <div>
+        <label class="block text-[10px] font-semibold text-gray-400 mb-1 uppercase tracking-wider">Imobiliária</label>
+        <select name="site" onchange="this.form.requestSubmit()"
+                class="w-full border rounded px-2 py-1.5 text-xs bg-white transition-colors
+                       {% if filters.get('site') %}border-blue-400 ring-1 ring-blue-200 text-blue-700{% else %}border-gray-200 text-gray-700 hover:border-gray-300{% endif %}">
+          <option value="">Todas</option>
+          {% for s in filter_options.sites %}
+          <option value="{{ s }}" {% if filters.get('site') == s %}selected{% endif %}>{{ s | site_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-[10px] font-semibold text-gray-400 mb-1 uppercase tracking-wider">Status</label>
+        <select name="status" onchange="this.form.requestSubmit()"
+                class="w-full border rounded px-2 py-1.5 text-xs bg-white transition-colors
+                       {% if filters.get('status') %}border-blue-400 ring-1 ring-blue-200 text-blue-700{% else %}border-gray-200 text-gray-700 hover:border-gray-300{% endif %}">
+          <option value="">Todos</option>
+          {% for s in filter_options.statuses %}
+          <option value="{{ s }}" {% if filters.get('status') == s %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-[10px] font-semibold text-gray-400 mb-1 uppercase tracking-wider">Bairro</label>
+        <select name="neighborhood" onchange="this.form.requestSubmit()"
+                class="w-full border rounded px-2 py-1.5 text-xs bg-white transition-colors
+                       {% if filters.get('neighborhood') %}border-blue-400 ring-1 ring-blue-200 text-blue-700{% else %}border-gray-200 text-gray-700 hover:border-gray-300{% endif %}">
+          <option value="">Todos</option>
+          {% for n in filter_options.neighborhoods %}
+          <option value="{{ n }}" {% if filters.get('neighborhood') == n %}selected{% endif %}>{{ n }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-[10px] font-semibold text-gray-400 mb-1 uppercase tracking-wider">Tipo</label>
+        <select name="category" onchange="this.form.requestSubmit()"
+                class="w-full border rounded px-2 py-1.5 text-xs bg-white transition-colors
+                       {% if filters.get('category') %}border-blue-400 ring-1 ring-blue-200 text-blue-700{% else %}border-gray-200 text-gray-700 hover:border-gray-300{% endif %}">
+          <option value="">Todos</option>
+          {% for c in filter_options.categories %}
+          <option value="{{ c }}" {% if filters.get('category') == c %}selected{% endif %}>{{ c }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-[10px] font-semibold text-gray-400 mb-1 uppercase tracking-wider">Preço (R$)</label>
+        <div class="flex gap-1.5">
+          <input type="number" name="price_min" value="{{ filters.get('price_min') or '' }}"
+                 placeholder="Mín" min="0" onchange="this.form.requestSubmit()"
+                 class="w-full border rounded px-2 py-1.5 text-xs transition-colors
+                        {% if filters.get('price_min') %}border-blue-400 ring-1 ring-blue-200{% else %}border-gray-200 hover:border-gray-300{% endif %}">
+          <input type="number" name="price_max" value="{{ filters.get('price_max') or '' }}"
+                 placeholder="Máx" min="0" onchange="this.form.requestSubmit()"
+                 class="w-full border rounded px-2 py-1.5 text-xs transition-colors
+                        {% if filters.get('price_max') %}border-blue-400 ring-1 ring-blue-200{% else %}border-gray-200 hover:border-gray-300{% endif %}">
+        </div>
+      </div>
+
+      <div class="pt-2 border-t border-gray-100">
+        <label class="flex items-center gap-2 text-xs text-gray-600 cursor-pointer select-none">
+          <input type="checkbox" name="include_inactive" value="1"
+                 onchange="this.form.requestSubmit()"
+                 {% if filters.get('include_inactive') %}checked{% endif %}
+                 class="rounded border-gray-300 text-blue-500 focus:ring-blue-400">
+          Mostrar removidos
+        </label>
+      </div>
+
+      {% if active_count > 0 %}
+      <button type="button"
+              onclick="document.querySelectorAll('#filter-form select').forEach(s=>s.value='');document.querySelectorAll('#filter-form input[type=number]').forEach(i=>i.value='');document.querySelector('#filter-form input[name=include_inactive]').checked=false;document.getElementById('filter-form').requestSubmit()"
+              class="w-full text-xs text-gray-400 hover:text-red-500 hover:bg-red-50 border border-gray-200 hover:border-red-200 rounded py-1 transition-colors">
+        Limpar filtros
+      </button>
+      {% endif %}
+
+    </div>
+  </form>
+</div>

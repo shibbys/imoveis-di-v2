@@ -1,5 +1,5 @@
 import re
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse, parse_qs, urlencode, urlunparse
 from bs4 import BeautifulSoup
 from scrapers.base import PropertyData, normalize_price, normalize_area, normalize_int
 from scrapers.platforms.kenlo import KenloScraper
@@ -117,3 +117,14 @@ class MuniqueScraper(KenloScraper):
                 if prop:
                     results.append(prop)
         return results
+
+    def _get_next_page_url(self, soup: BeautifulSoup, current_url: str):
+        parsed = urlparse(current_url)
+        params = parse_qs(parsed.query, keep_blank_values=True)
+        page = int(params.get("pagina", ["1"])[0])
+        params["pagina"] = [str(page + 1)]
+        new_query = urlencode({k: v[0] for k, v in params.items()})
+        return urlunparse(parsed._replace(query=new_query))
+
+    async def scrape(self) -> list:
+        return await self._scrape_url_pages(self.url)

@@ -81,19 +81,65 @@ async def mapa(request: Request):
     conn = get_connection()
     imoveis_aluguel = get_imoveis(conn, "aluguel")
     imoveis_compra = get_imoveis(conn, "compra")
+
+    # Fetch cover images for all mapped properties in one query
+    all_imoveis = list(imoveis_aluguel) + list(imoveis_compra)
+    mapped_ids = [im["id"] for im in all_imoveis if im["lat"] and im["lng"]]
+    covers: dict = {}
+    if mapped_ids:
+        ph = ",".join("?" * len(mapped_ids))
+        rows = conn.execute(
+            f"SELECT imovel_id, url FROM imovel_imagens WHERE position=0 AND imovel_id IN ({ph})",
+            mapped_ids,
+        ).fetchall()
+        covers = {r["imovel_id"]: r["url"] for r in rows}
     conn.close()
+
     m = folium.Map(location=[-29.6167, -51.0833], zoom_start=14)
-    for im in list(imoveis_aluguel) + list(imoveis_compra):
-        if im["lat"] and im["lng"]:
-            color = STATUS_COLORS.get(im["status"], "blue")
-            price_str = f'R$ {im["price"]:,.0f}'.replace(",", ".") if im["price"] else "—"
-            popup_html = f'<b>{im["source_site"]}</b><br>{im["title"] or im["category"]}<br>{price_str}<br><a href="{im["source_url"]}" target="_blank">Ver anúncio ↗</a>'
-            folium.Marker(
-                location=[im["lat"], im["lng"]],
-                popup=folium.Popup(popup_html, max_width=250),
-                tooltip=f'{im["source_site"]} — {price_str}',
-                icon=folium.Icon(color=color)
-            ).add_to(m)
+
+    for im in all_imoveis:
+        if not (im["lat"] and im["lng"]):
+            continue
+        tipo = im["transaction_type"]
+        color = "blue" if tipo == "aluguel" else "red"
+        price_str = f'R$ {im["price"]:,.0f}'.replace(",", ".") if im["price"] else "—"
+        tipo_label = "Aluguel" if tipo == "aluguel" else "Compra"
+        title = im["title"] or im["category"] or "Imóvel"
+
+        cover_url = covers.get(im["id"], "")
+        img_html = (
+            f'<img src="{cover_url}" style="width:220px;height:130px;'
+            f'object-fit:cover;border-radius:4px;margin-bottom:6px;display:block;">'
+            if cover_url else ""
+        )
+        popup_html = (
+            f'{img_html}'
+            f'<b style="font-size:13px">{title}</b><br>'
+            f'<span style="color:#666;font-size:12px">{_site_display_name(im["source_site"])} · {tipo_label}</span><br>'
+            f'<span style="font-size:14px;font-weight:bold">{price_str}</span><br>'
+            f'<a href="{im["source_url"]}" target="_blank" '
+            f'style="font-size:12px;color:#3b82f6">Ver anúncio ↗</a>'
+        )
+        folium.Marker(
+            location=[im["lat"], im["lng"]],
+            popup=folium.Popup(popup_html, max_width=260),
+            tooltip=f'{tipo_label} — {price_str}',
+            icon=folium.Icon(color=color),
+        ).add_to(m)
+
+    # Legend
+    legend_html = """
+    <div style="position:fixed;bottom:30px;left:30px;z-index:1000;
+                background:white;padding:10px 14px;border-radius:8px;
+                border:1px solid #ddd;font-size:13px;
+                box-shadow:2px 2px 8px rgba(0,0,0,0.15);">
+      <b style="display:block;margin-bottom:6px">Legenda</b>
+      <span style="color:#3b82f6;font-size:16px">●</span>&nbsp;Aluguel<br>
+      <span style="color:#ef4444;font-size:16px">●</span>&nbsp;Compra
+    </div>
+    """
+    m.get_root().html.add_child(folium.Element(legend_html))
+
     return templates.TemplateResponse(request, "mapa.html", {
         "active_tab": "mapa",
         "username": request.session.get("username"),
@@ -134,14 +180,16 @@ async def partial_imoveis(
     price_max: str = "",
     sort: str = "first_seen",
     sort_dir: str = "desc",
+    include_inactive: str = "",
 ):
     if not require_login(request):
         return HTMLResponse(status_code=401)
     pm = float(price_min) if price_min.strip() else 0.0
     px = float(price_max) if price_max.strip() else 0.0
+    show_inactive = include_inactive in ("1", "true", "on")
     conn = get_connection()
     imoveis = get_imoveis(conn, tipo, site, status, neighborhood, category,
-                          pm, px, sort, sort_dir)
+                          pm, px, sort, sort_dir, include_inactive=show_inactive)
     conn.close()
     return templates.TemplateResponse(request, "partials/_imovel_tabela.html", {
         "imoveis": imoveis,
@@ -152,6 +200,7 @@ async def partial_imoveis(
         "filters": {
             "site": site, "status": status, "neighborhood": neighborhood,
             "category": category, "price_min": price_min, "price_max": price_max,
+            "include_inactive": include_inactive,
         },
     })
 
@@ -195,10 +244,12 @@ async def partial_update_status(request: Request, imovel_id: str):
     conn.commit()
     imovel = get_imovel(conn, imovel_id)
     conn.close()
-    return templates.TemplateResponse(request, "partials/_imovel_linha.html", {
+    resp = templates.TemplateResponse(request, "partials/_imovel_linha.html", {
         "imovel": imovel,
         "statuses": STATUSES,
     })
+    resp.headers["HX-Trigger-After-Settle"] = "imovelStatusChanged"
+    return resp
 
 
 @router.post("/partials/imovel/{imovel_id}/quick-status", response_class=HTMLResponse)
@@ -222,13 +273,15 @@ async def partial_quick_status(request: Request, imovel_id: str):
     price_history = get_imovel_price_history(conn, imovel_id)
     last_activity = get_last_activity(conn, imovel_id)
     conn.close()
-    return templates.TemplateResponse(request, "partials/_imovel_detalhe.html", {
+    resp = templates.TemplateResponse(request, "partials/_imovel_detalhe.html", {
         "imovel": imovel,
         "images": images,
         "price_history": price_history,
         "last_activity": last_activity,
         "statuses": STATUSES,
     })
+    resp.headers["HX-Trigger-After-Settle"] = "imovelStatusChanged"
+    return resp
 
 
 @router.get("/partials/imovel/{imovel_id}/edit", response_class=HTMLResponse)

@@ -122,8 +122,9 @@ class DapperScraper(BaseScraper):
                         seen_ids.add(imovel_id)
 
                         mlsid = item.get("MLSID") or item.get("ReferenceId", "")
-                        neg_type = item.get("CurrentNegotiationTypeTitle", "Vendas")
-                        source_url = f"{_SITE_BASE}/imovel/{neg_type}/{imovel_id}"
+                        source_url = f"{_SITE_BASE}/imovel/{mlsid}" if mlsid else (
+                            f"{_SITE_BASE}/imovel/{item.get('CurrentNegotiationTypeTitle','Vendas')}/{imovel_id}"
+                        )
 
                         spot = item.get("CurrentSpot") or {}
                         neighborhood = spot.get("Neighborhood") or ""

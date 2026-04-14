@@ -5,6 +5,7 @@ from scrapers.base import PropertyData, normalize_price, normalize_int
 from scrapers.platforms.kenlo import KenloScraper
 
 
+
 class TecimobScraper(KenloScraper):
     """Scraper for sites running on Tecimob platform."""
 
@@ -75,4 +76,18 @@ class TecimobScraper(KenloScraper):
             return None
 
     def _get_next_page_url(self, soup: BeautifulSoup, current_url: str):
-        return None  # Tecimob uses JS pagination
+        # Confiança pattern: .../N/sort=menor-valor
+        m = re.search(r'/(\d+)/sort=', current_url)
+        if m:
+            page = int(m.group(1))
+            return re.sub(r'/\d+/sort=', f'/{page + 1}/sort=', current_url)
+        # Postai/generic: ends with /N
+        m = re.search(r'/(\d+)$', current_url)
+        if m:
+            page = int(m.group(1))
+            return re.sub(r'/\d+$', f'/{page + 1}', current_url)
+        # First page without a number — append /2
+        return current_url.rstrip('/') + '/2'
+
+    async def scrape(self) -> list:
+        return await self._scrape_url_pages(self.url)

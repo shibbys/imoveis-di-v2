@@ -49,11 +49,13 @@ class VoaScraper(KenloScraper):
             if not a:
                 return None
             href = a["href"]
-            # Voa hrefs are relative without leading slash (e.g. "imovel/casa-...")
+            # Voa hrefs are root-relative or path-relative (e.g. "/imovel/casa-..." or
+            # "imovel/casa-..."). base_url is the listing page URL which includes path
+            # and query string — we must resolve against the site origin only.
             if not href.startswith("http"):
-                base = base_url.rstrip("/")
-                href = href.lstrip("/")
-                source_url = f"{base}/{href}"
+                parsed = urlparse(base_url)
+                origin = f"{parsed.scheme}://{parsed.netloc}"
+                source_url = f"{origin}/{href.lstrip('/')}"
             else:
                 source_url = href
 
