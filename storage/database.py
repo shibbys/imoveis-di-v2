@@ -1,5 +1,6 @@
 import sqlite3
 import os
+import yaml
 from typing import Optional
 
 _DB_PATH: str = ""
@@ -75,7 +76,7 @@ def init_db(path: str, conn: Optional[sqlite3.Connection] = None) -> None:
         # slate (test isolation).
         c.execute("PRAGMA foreign_keys=OFF")
         for tbl in ("activity_log", "users", "workspace", "runs",
-                    "historico", "imovel_imagens", "imoveis"):
+                    "historico", "imovel_imagens", "imoveis", "sites"):
             c.execute(f"DROP TABLE IF EXISTS {tbl}")
         c.commit()
         c.execute("PRAGMA foreign_keys=ON")
@@ -168,16 +169,54 @@ def init_db(path: str, conn: Optional[sqlite3.Connection] = None) -> None:
             new_value  TEXT
         );
 
+        CREATE TABLE IF NOT EXISTS sites (
+            name             TEXT PRIMARY KEY,
+            url              TEXT NOT NULL,
+            platform         TEXT NOT NULL,
+            transaction_type TEXT NOT NULL,
+            active           INTEGER NOT NULL DEFAULT 1,
+            max_pages        INTEGER
+        );
+
         INSERT OR IGNORE INTO workspace (id) VALUES (1);
     """)
     c.commit()
 
+    # Seed sites table from sites.yaml. On first run (table empty) inserts all rows.
+    # On subsequent runs, inserts new sites and updates the platform column for
+    # existing ones (platform is not user-editable via UI, so always sync from YAML).
+    yaml_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config", "sites.yaml")
+    if os.path.exists(yaml_path):
+        with open(yaml_path, encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+        for site in data.get("sites", []):
+            c.execute(
+                "INSERT OR IGNORE INTO sites (name, url, platform, transaction_type, active, max_pages) "
+                "VALUES (?,?,?,?,?,?)",
+                [
+                    site["name"], site["url"], site["platform"],
+                    site.get("transaction_type", "aluguel"),
+                    1 if site.get("active", True) else 0,
+                    site.get("max_pages"),
+                ],
+            )
+            # Always sync platform from YAML (user cannot change it via UI)
+            c.execute(
+                "UPDATE sites SET platform=? WHERE name=? AND platform != ?",
+                [site["platform"], site["name"], site["platform"]],
+            )
+        c.commit()
+
 
 # ── Property queries ──────────────────────────────────────────────────────────
 
+_SORT_COLUMNS = {"first_seen", "last_seen", "price", "neighborhood", "bedrooms", "category"}
+
+
 def get_imoveis(conn: sqlite3.Connection, transaction_type: str,
                 site: str = "", status: str = "", neighborhood: str = "",
-                category: str = "", price_min: float = 0, price_max: float = 0
+                category: str = "", price_min: float = 0, price_max: float = 0,
+                sort: str = "first_seen", sort_dir: str = "desc",
                 ) -> list:
     sql = "SELECT * FROM imoveis WHERE transaction_type = ? AND is_active = 1"
     params: list = [transaction_type]
@@ -199,7 +238,9 @@ def get_imoveis(conn: sqlite3.Connection, transaction_type: str,
     if price_max:
         sql += " AND price <= ?"
         params.append(price_max)
-    sql += " ORDER BY first_seen DESC"
+    col = sort if sort in _SORT_COLUMNS else "first_seen"
+    direction = "ASC" if sort_dir.lower() == "asc" else "DESC"
+    sql += f" ORDER BY {col} {direction}"
     return conn.execute(sql, params).fetchall()
 
 
@@ -313,6 +354,31 @@ def get_runs(conn: sqlite3.Connection, limit: int = 50) -> list:
 
 def get_run(conn: sqlite3.Connection, run_id: str):
     return conn.execute("SELECT * FROM runs WHERE run_id=?", [run_id]).fetchone()
+
+
+# ── Sites ────────────────────────────────────────────────────────────────────
+
+def get_sites(conn: sqlite3.Connection, active_only: bool = False) -> list:
+    sql = "SELECT * FROM sites"
+    if active_only:
+        sql += " WHERE active=1"
+    sql += " ORDER BY transaction_type, name"
+    return conn.execute(sql).fetchall()
+
+
+def update_site(conn: sqlite3.Connection, name: str, url: str, active: bool) -> None:
+    conn.execute(
+        "UPDATE sites SET url=?, active=? WHERE name=?",
+        [url, 1 if active else 0, name]
+    )
+
+
+def get_site_counts(conn: sqlite3.Connection) -> dict:
+    """Return {site_name: count} for active imoveis."""
+    rows = conn.execute(
+        "SELECT source_site, COUNT(*) as cnt FROM imoveis WHERE is_active=1 GROUP BY source_site"
+    ).fetchall()
+    return {r["source_site"]: r["cnt"] for r in rows}
 
 
 # ── Users ─────────────────────────────────────────────────────────────────────

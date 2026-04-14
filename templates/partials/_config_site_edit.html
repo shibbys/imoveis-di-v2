@@ -1,0 +1,44 @@
+<tr id="site-group-{{ group.base }}" class="border-b border-gray-100 align-top bg-blue-50">
+  <td class="py-2 pr-4 font-medium text-gray-800 whitespace-nowrap">{{ group.display }}</td>
+
+  <td colspan="3" class="py-3 pr-4">
+    <form hx-post="/configuracoes/site/{{ group.base }}"
+          hx-target="#site-group-{{ group.base }}"
+          hx-swap="outerHTML">
+      <div class="space-y-3">
+
+        {% for s in (group.aluguel + group.compra) %}
+        <div class="border border-gray-200 rounded p-3 bg-white">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-medium text-gray-600 uppercase">
+              {{ s.transaction_type }} — {{ s.name }}
+            </span>
+            <label class="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
+              <input type="checkbox" name="active_{{ s.name }}" value="1"
+                     {% if s.active %}checked{% endif %}
+                     class="accent-blue-600">
+              Ativo
+            </label>
+          </div>
+          <textarea name="url_{{ s.name }}" rows="2"
+                    class="w-full border border-gray-300 rounded px-2 py-1.5 text-xs font-mono resize-y">{{ s.url }}</textarea>
+        </div>
+        {% endfor %}
+
+      </div>
+      <div class="flex gap-2 mt-3">
+        <button type="submit"
+                class="bg-blue-600 text-white px-3 py-1.5 rounded text-xs hover:bg-blue-700">
+          Salvar
+        </button>
+        <button type="button"
+                hx-get="/configuracoes/site/{{ group.base }}/cancel"
+                hx-target="#site-group-{{ group.base }}"
+                hx-swap="outerHTML"
+                class="bg-white border border-gray-300 text-gray-600 px-3 py-1.5 rounded text-xs hover:bg-gray-50">
+          Cancelar
+        </button>
+      </div>
+    </form>
+  </td>
+</tr>

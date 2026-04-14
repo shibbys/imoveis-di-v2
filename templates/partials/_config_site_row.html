@@ -1,0 +1,55 @@
+<tr id="site-group-{{ group.base }}" class="border-b border-gray-100 align-top">
+  <td class="py-2 pr-4 font-medium text-gray-800 whitespace-nowrap">{{ group.display }}</td>
+
+  {# Aluguel cell #}
+  <td class="py-2 pr-4 text-sm">
+    {% if group.aluguel %}
+      {% for s in group.aluguel %}
+      <div class="flex items-center gap-2 mb-0.5">
+        <span class="{% if s.active %}text-gray-700{% else %}text-gray-300 line-through{% endif %}">
+          {{ s.count }} imóveis
+        </span>
+        <form class="inline" hx-post="/scraping/trigger-sites" hx-target="#scraping-log" hx-swap="innerHTML">
+          <input type="hidden" name="site_name" value="{{ s.name }}">
+          <button type="submit"
+                  class="text-xs {% if s.active %}text-blue-500 hover:underline{% else %}text-gray-300 cursor-not-allowed{% endif %}"
+                  {% if not s.active %}disabled{% endif %}>scrap</button>
+        </form>
+      </div>
+      {% endfor %}
+    {% else %}
+      <span class="text-gray-300">—</span>
+    {% endif %}
+  </td>
+
+  {# Compra cell #}
+  <td class="py-2 pr-4 text-sm">
+    {% if group.compra %}
+      {% for s in group.compra %}
+      <div class="flex items-center gap-2 mb-0.5">
+        <span class="{% if s.active %}text-gray-700{% else %}text-gray-300 line-through{% endif %}">
+          {{ s.count }} imóveis
+        </span>
+        <form class="inline" hx-post="/scraping/trigger-sites" hx-target="#scraping-log" hx-swap="innerHTML">
+          <input type="hidden" name="site_name" value="{{ s.name }}">
+          <button type="submit"
+                  class="text-xs {% if s.active %}text-blue-500 hover:underline{% else %}text-gray-300 cursor-not-allowed{% endif %}"
+                  {% if not s.active %}disabled{% endif %}>scrap</button>
+        </form>
+      </div>
+      {% endfor %}
+    {% else %}
+      <span class="text-gray-300">—</span>
+    {% endif %}
+  </td>
+
+  {# Edit button #}
+  <td class="py-2">
+    <button hx-get="/configuracoes/site/{{ group.base }}"
+            hx-target="#site-group-{{ group.base }}"
+            hx-swap="outerHTML"
+            class="text-xs text-gray-400 hover:text-blue-500">
+      editar
+    </button>
+  </td>
+</tr>

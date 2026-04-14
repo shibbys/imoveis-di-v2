@@ -1,4 +1,5 @@
-<div class="bg-white rounded-lg border border-gray-200 p-4 text-sm sticky top-4">
+<div class="bg-white rounded-lg border border-gray-200 p-4 text-sm sticky top-4"
+     data-imovel-id="{{ imovel.id }}" data-status="{{ imovel.status }}">
   {% if images %}
   <div id="carousel-{{ imovel.id }}" data-carousel class="mb-4 relative bg-gray-100 rounded overflow-hidden"
        style="height: 200px;">
@@ -19,7 +20,7 @@
     <div class="flex-1 min-w-0 pr-2">
       <h3 class="font-semibold text-gray-900 truncate">{{ imovel.title or imovel.category or "Imóvel" }}</h3>
       <p class="text-gray-400 text-xs mt-0.5">
-        {{ imovel.source_site }} ·
+        {{ imovel.source_site | site_name }} ·
         <a href="{{ imovel.source_url }}" target="_blank" class="text-blue-500 hover:underline">ver anúncio ↗</a>
       </p>
     </div>
@@ -29,6 +30,39 @@
             class="text-xs text-gray-400 hover:text-blue-500 shrink-0">
       editar
     </button>
+  </div>
+
+  <div class="flex gap-1.5 mb-4">
+    <form hx-post="/partials/imovel/{{ imovel.id }}/quick-status"
+          hx-target="#detalhe-panel" hx-swap="innerHTML">
+      <input type="hidden" name="status" value="Interessante">
+      <button type="submit" {% if imovel.status == 'Interessante' %}disabled{% endif %}
+              class="text-xs px-2 py-1 rounded border transition-colors
+                     {% if imovel.status == 'Interessante' %}bg-green-50 border-green-300 text-green-600 opacity-60 cursor-not-allowed
+                     {% else %}bg-white border-gray-200 text-gray-600 hover:border-green-400 hover:text-green-600{% endif %}">
+        Interessante
+      </button>
+    </form>
+    <form hx-post="/partials/imovel/{{ imovel.id }}/quick-status"
+          hx-target="#detalhe-panel" hx-swap="innerHTML">
+      <input type="hidden" name="status" value="Não tem interesse">
+      <button type="submit" {% if imovel.status == 'Não tem interesse' %}disabled{% endif %}
+              class="text-xs px-2 py-1 rounded border transition-colors
+                     {% if imovel.status == 'Não tem interesse' %}bg-gray-100 border-gray-300 text-gray-500 opacity-60 cursor-not-allowed
+                     {% else %}bg-white border-gray-200 text-gray-600 hover:border-gray-400{% endif %}">
+        Sem interesse
+      </button>
+    </form>
+    <form hx-post="/partials/imovel/{{ imovel.id }}/quick-status"
+          hx-target="#detalhe-panel" hx-swap="innerHTML">
+      <input type="hidden" name="status" value="Descartado">
+      <button type="submit" {% if imovel.status == 'Descartado' %}disabled{% endif %}
+              class="text-xs px-2 py-1 rounded border transition-colors
+                     {% if imovel.status == 'Descartado' %}bg-red-50 border-red-200 text-red-500 opacity-60 cursor-not-allowed
+                     {% else %}bg-white border-gray-200 text-gray-600 hover:border-red-400 hover:text-red-500{% endif %}">
+        Descartar
+      </button>
+    </form>
   </div>
 
   <dl class="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs mb-4 bg-gray-50 rounded p-3">
@@ -51,12 +85,10 @@
     {% if imovel.parking_spots %}
     <dt class="text-gray-400">Vagas</dt><dd>{{ imovel.parking_spots }}</dd>
     {% endif %}
-    {% if imovel.area_m2 %}
-    <dt class="text-gray-400">Área</dt><dd>{{ imovel.area_m2 }} m²</dd>
-    {% endif %}
-    {% if imovel.land_area_m2 %}
-    <dt class="text-gray-400">Terreno</dt><dd>{{ imovel.land_area_m2 }} m²</dd>
-    {% endif %}
+    <dt class="text-gray-400">Área</dt>
+    <dd>{% if imovel.area_m2 %}{{ imovel.area_m2 }} m²{% else %}—{% endif %}</dd>
+    <dt class="text-gray-400">Terreno</dt>
+    <dd>{% if imovel.land_area_m2 %}{{ imovel.land_area_m2 }} m²{% else %}—{% endif %}</dd>
     <dt class="text-gray-400">Visto em</dt>
     <dd>{{ imovel.first_seen[:10] if imovel.first_seen else "—" }}</dd>
   </dl>

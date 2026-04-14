@@ -172,6 +172,62 @@ class KenloScraper(BaseScraper):
         # Kenlo uses JS-only "Ver mais" button — no URL pagination
         return None
 
+    async def _scrape_url_pages(self, start_url: str, scroll: bool = False) -> list:
+        """
+        Generic URL-pagination loop for subclasses that paginate via URL.
+        Calls _get_next_page_url(soup, current_url) after each page.
+        Stops when a page yields no new results or _get_next_page_url returns None.
+        Pass scroll=True to scroll-trigger lazy-loaded cards before parsing.
+        """
+        all_results = []
+        seen_urls: set = set()
+        current_url = start_url
+
+        async with async_playwright() as pw:
+            browser = await pw.chromium.launch(headless=True)
+            try:
+                ctx = await browser.new_context(
+                    user_agent=(
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/120.0.0.0 Safari/537.36"
+                    )
+                )
+                page = await ctx.new_page()
+                await page.add_init_script(
+                    "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
+                )
+
+                for _ in range(self.max_pages):
+                    await page.goto(current_url, wait_until="networkidle", timeout=30000)
+                    await page.wait_for_timeout(1000)
+
+                    if scroll:
+                        await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                        await page.wait_for_timeout(1500)
+                        await page.evaluate("window.scrollTo(0, 0)")
+                        await page.wait_for_timeout(500)
+
+                    html = await page.content()
+                    soup = BeautifulSoup(html, "html.parser")
+                    results = self._parse_page(soup, current_url)
+
+                    new_results = [r for r in results if r.source_url not in seen_urls]
+                    for r in new_results:
+                        seen_urls.add(r.source_url)
+                    all_results.extend(new_results)
+
+                    if not new_results:
+                        break
+                    next_url = self._get_next_page_url(soup, current_url)
+                    if not next_url:
+                        break
+                    current_url = next_url
+            finally:
+                await browser.close()
+
+        return all_results
+
     async def scrape(self) -> list:
         async with async_playwright() as pw:
             browser = await pw.chromium.launch(headless=True)
@@ -190,15 +246,24 @@ class KenloScraper(BaseScraper):
                 await page.goto(self.url, wait_until="networkidle", timeout=30000)
                 await page.wait_for_timeout(1000)
 
+                # Scroll to trigger lazy-loaded content
+                await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                await page.wait_for_timeout(800)
+                await page.evaluate("window.scrollTo(0, 0)")
+                await page.wait_for_timeout(400)
+
                 # Click "Ver mais" until button disappears or max_pages reached
                 clicks = 0
                 while clicks < self.max_pages - 1:
                     btn = await page.query_selector("button.btn-next, .pagination-cell button, .pagination button")
                     if not btn:
                         break
-                    await btn.click()
-                    await page.wait_for_timeout(1500)
-                    clicks += 1
+                    try:
+                        await btn.click(timeout=10000)
+                        await page.wait_for_timeout(1500)
+                        clicks += 1
+                    except Exception:
+                        break
 
                 html = await page.content()
                 soup = BeautifulSoup(html, "html.parser")

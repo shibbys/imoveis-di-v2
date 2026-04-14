@@ -1,4 +1,5 @@
 <tr id="imovel-{{ imovel.id }}"
+    data-imovel-row
     class="border-b border-gray-100 hover:bg-blue-50 cursor-pointer transition-colors"
     hx-get="/partials/imovel/{{ imovel.id }}"
     hx-target="#detalhe-panel"
@@ -11,7 +12,7 @@
   <td class="py-2 pr-3 font-medium text-gray-800">
     {% if imovel.price %}R$ {{ "{:,.0f}".format(imovel.price).replace(",", ".") }}{% else %}—{% endif %}
   </td>
-  <td class="py-2 pr-3 text-gray-500 text-xs truncate max-w-[120px]">{{ imovel.source_site }}</td>
+  <td class="py-2 pr-3 text-gray-500 text-xs truncate max-w-[120px]">{{ imovel.source_site | site_name }}</td>
   <td class="py-2" onclick="event.stopPropagation()">
     <form hx-post="/partials/imovel/{{ imovel.id }}/status"
           hx-target="#imovel-{{ imovel.id }}"

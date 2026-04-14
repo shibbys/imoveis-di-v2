@@ -6,7 +6,7 @@ def test_schema_creates_all_tables():
     init_db(":memory:", conn=conn)
     cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
     tables = {row[0] for row in cursor.fetchall() if row[0] != 'sqlite_sequence'}
-    assert tables == {"imoveis", "imovel_imagens", "historico", "runs", "workspace", "users", "activity_log"}
+    assert tables == {"imoveis", "imovel_imagens", "historico", "runs", "workspace", "users", "activity_log", "sites"}
 
 
 def test_workspace_row_initialized():

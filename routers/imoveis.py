@@ -16,6 +16,15 @@ from routers.auth import require_login
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
+
+def _site_display_name(name: str) -> str:
+    """Convert scraper ID (e.g. 'felippe_alfredo_compra') to display name ('Felippe Alfredo')."""
+    name = re.sub(r"_(compra|aluguel)$", "", name)
+    return name.replace("_", " ").title()
+
+
+templates.env.filters["site_name"] = _site_display_name
+
 STATUSES = [
     "Novo", "Em análise", "Interessante", "Visita agendada",
     "Visitado", "Não tem interesse", "Descartado"
@@ -121,18 +130,25 @@ async def partial_imoveis(
     status: str = "",
     neighborhood: str = "",
     category: str = "",
-    price_min: float = 0,
-    price_max: float = 0,
+    price_min: str = "",
+    price_max: str = "",
+    sort: str = "first_seen",
+    sort_dir: str = "desc",
 ):
     if not require_login(request):
         return HTMLResponse(status_code=401)
+    pm = float(price_min) if price_min.strip() else 0.0
+    px = float(price_max) if price_max.strip() else 0.0
     conn = get_connection()
-    imoveis = get_imoveis(conn, tipo, site, status, neighborhood, category, price_min, price_max)
+    imoveis = get_imoveis(conn, tipo, site, status, neighborhood, category,
+                          pm, px, sort, sort_dir)
     conn.close()
     return templates.TemplateResponse(request, "partials/_imovel_tabela.html", {
         "imoveis": imoveis,
         "tipo": tipo,
         "statuses": STATUSES,
+        "sort": sort,
+        "sort_dir": sort_dir,
         "filters": {
             "site": site, "status": status, "neighborhood": neighborhood,
             "category": category, "price_min": price_min, "price_max": price_max,
@@ -181,6 +197,36 @@ async def partial_update_status(request: Request, imovel_id: str):
     conn.close()
     return templates.TemplateResponse(request, "partials/_imovel_linha.html", {
         "imovel": imovel,
+        "statuses": STATUSES,
+    })
+
+
+@router.post("/partials/imovel/{imovel_id}/quick-status", response_class=HTMLResponse)
+async def partial_quick_status(request: Request, imovel_id: str):
+    """Quick-action status update: returns updated detail panel + OOB table row."""
+    if not require_login(request):
+        return HTMLResponse(status_code=401)
+    form = await request.form()
+    new_status = str(form.get("status", ""))
+    user_id = request.session["user_id"]
+    conn = get_connection()
+    old = get_imovel(conn, imovel_id)
+    old_status = old["status"] if old else None
+    tipo = old["transaction_type"] if old else "aluguel"
+    update_imovel_status(conn, imovel_id, new_status)
+    log_activity(conn, imovel_id, user_id, "status", old_status, new_status)
+    mark_reviewed(conn, tipo)
+    conn.commit()
+    imovel = get_imovel(conn, imovel_id)
+    images = [r["url"] for r in get_imovel_images(conn, imovel_id)]
+    price_history = get_imovel_price_history(conn, imovel_id)
+    last_activity = get_last_activity(conn, imovel_id)
+    conn.close()
+    return templates.TemplateResponse(request, "partials/_imovel_detalhe.html", {
+        "imovel": imovel,
+        "images": images,
+        "price_history": price_history,
+        "last_activity": last_activity,
         "statuses": STATUSES,
     })
 

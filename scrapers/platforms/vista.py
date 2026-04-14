@@ -73,3 +73,6 @@ class VistaScraper(KenloScraper):
             next_url = re.sub(r'/\d+/?$', f'/{page + 1}/', current_url.split('?')[0])
             return next_url
         return None
+
+    async def scrape(self) -> list:
+        return await self._scrape_url_pages(self.url)

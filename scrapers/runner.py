@@ -6,10 +6,9 @@ import uuid
 from datetime import datetime, timezone
 from typing import Callable, Optional
 
-import yaml
 from scrapers.base import PropertyData
 from scrapers.registry import get_scraper
-from storage.database import get_connection
+from storage.database import get_connection, get_sites
 
 # Module-level state
 _event_queue: Optional[asyncio.Queue] = None
@@ -273,9 +272,10 @@ async def run_scraping(sites_config: Optional[list] = None) -> None:
     start_time = datetime.now(timezone.utc)
 
     if sites_config is None:
-        with open("config/sites.yaml") as f:
-            data = yaml.safe_load(f)
-        sites_config = [s for s in data.get("sites", []) if s.get("active", True)]
+        cfg_conn = get_connection()
+        rows = get_sites(cfg_conn, active_only=True)
+        cfg_conn.close()
+        sites_config = [dict(row) for row in rows]
 
     conn = get_connection()
     conn.execute(

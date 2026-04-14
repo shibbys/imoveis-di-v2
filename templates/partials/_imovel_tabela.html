@@ -4,8 +4,14 @@
     <thead>
       <tr class="text-left border-b border-gray-200 text-gray-400 text-xs uppercase tracking-wide">
         <th class="py-2 pr-3 font-medium">Imóvel</th>
-        <th class="py-2 pr-3 font-medium">Bairro</th>
-        <th class="py-2 pr-3 font-medium">Preço</th>
+        <th class="py-2 pr-3 font-medium cursor-pointer select-none hover:text-gray-600"
+            onclick="sortBy('neighborhood')">Bairro
+          {% if sort == 'neighborhood' %}{% if sort_dir == 'asc' %}↑{% else %}↓{% endif %}{% else %}<span class="opacity-30">↕</span>{% endif %}
+        </th>
+        <th class="py-2 pr-3 font-medium cursor-pointer select-none hover:text-gray-600"
+            onclick="sortBy('price')">Preço
+          {% if sort == 'price' %}{% if sort_dir == 'asc' %}↑{% else %}↓{% endif %}{% else %}<span class="opacity-30">↕</span>{% endif %}
+        </th>
         <th class="py-2 pr-3 font-medium">Imobiliária</th>
         <th class="py-2 font-medium">Status</th>
       </tr>
@@ -23,3 +29,11 @@
   <p class="text-gray-400 text-sm">Nenhum imóvel encontrado com os filtros atuais.</p>
 </div>
 {% endif %}
+<script>
+(function () {
+  var sf = document.getElementById('sort-field');
+  var sd = document.getElementById('sort-dir');
+  if (sf) sf.value = '{{ sort }}';
+  if (sd) sd.value = '{{ sort_dir }}';
+})();
+</script>
