@@ -105,6 +105,24 @@ async def configuracoes_post(request: Request, schedule: str = Form(...)):
     update_schedule(conn, schedule)
     conn.commit()
     conn.close()
+
+    # Re-schedule the running APScheduler job immediately
+    parts = schedule.strip().split()
+    if len(parts) == 5:
+        try:
+            from apscheduler.triggers.cron import CronTrigger
+            from scrapers.runner import run_scraping
+            scheduler = request.app.state.scheduler
+            scheduler.reschedule_job(
+                "scheduled_scraping",
+                trigger=CronTrigger(
+                    minute=parts[0], hour=parts[1], day=parts[2],
+                    month=parts[3], day_of_week=parts[4],
+                ),
+            )
+        except Exception:
+            pass  # Job may not exist yet if scheduler failed to start; silently ignore
+
     return RedirectResponse(url="/configuracoes", status_code=303)
 
 

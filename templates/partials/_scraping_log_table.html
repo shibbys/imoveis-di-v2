@@ -1,7 +1,7 @@
 {% if run and run.sites_log %}
 <p class="text-xs text-gray-500 mb-2">
   Último scraping: {{ run.run_date[:10] }} às {{ run.run_date[11:16] }}
-  · {{ run.duration_seconds | int }}s
+  · {{ run.duration_seconds | format_duration }}
   · <span class="{% if run.status == 'completed' %}text-green-400{% elif run.status == 'partial' %}text-yellow-400{% else %}text-red-400{% endif %}">{{ run.status }}</span>
 </p>
 <table class="w-full text-sm border-collapse">
@@ -61,7 +61,7 @@
         {% else %}
           <span class="text-green-400">✓</span>
         {% endif %}
-        <span class="text-gray-500">{{ row.total_duration }}s</span>
+        <span class="text-gray-500">{{ row.total_duration | format_duration }}</span>
       </td>
     </tr>
     {% endfor %}
@@ -73,7 +73,7 @@
         · <span class="text-green-400">+{{ run.new_count }} novos</span>
         {% if run.updated_count %} · <span class="text-amber-400">~{{ run.updated_count }} atualizados</span>{% endif %}
         {% if run.removed_count %} · <span class="text-red-400">-{{ run.removed_count }} removidos</span>{% endif %}
-        · {{ run.duration_seconds | int }}s total
+        · {{ run.duration_seconds | format_duration }} total
       </td>
     </tr>
   </tbody>

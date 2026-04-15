@@ -11,24 +11,47 @@
       {# Cabeçalho: título + botões globais + status indicator #}
       <div class="flex items-center justify-between mb-2">
         <h3 class="font-medium text-sm text-gray-700">Imobiliárias</h3>
-        <div class="flex items-center gap-1.5">
-          <form hx-post="/scraping/trigger" hx-target="#scraping-status" hx-swap="innerHTML" class="inline">
-            <button type="submit" class="bg-gray-700 text-white px-2.5 py-1 rounded text-xs hover:bg-gray-600">
-              &#9654; Tudo
-            </button>
-          </form>
-          <form hx-post="/scraping/trigger-sites" hx-target="#scraping-status" hx-swap="innerHTML" class="inline">
-            <input type="hidden" name="transaction_type" value="aluguel">
-            <button type="submit" class="bg-blue-600 text-white px-2.5 py-1 rounded text-xs hover:bg-blue-700">
-              &#9654; Aluguel
-            </button>
-          </form>
-          <form hx-post="/scraping/trigger-sites" hx-target="#scraping-status" hx-swap="innerHTML" class="inline">
-            <input type="hidden" name="transaction_type" value="compra">
-            <button type="submit" class="bg-green-600 text-white px-2.5 py-1 rounded text-xs hover:bg-green-700">
-              &#9654; Compra
-            </button>
-          </form>
+        <div class="flex flex-col gap-1.5">
+          <div class="flex items-center gap-1.5">
+            <span class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider w-20">Scraping</span>
+            <form hx-post="/scraping/trigger" hx-target="#scraping-status" hx-swap="innerHTML" class="inline">
+              <button type="submit" class="bg-gray-700 text-white px-2.5 py-1 rounded text-xs hover:bg-gray-600">
+                &#9654; Tudo
+              </button>
+            </form>
+            <form hx-post="/scraping/trigger-sites" hx-target="#scraping-status" hx-swap="innerHTML" class="inline">
+              <input type="hidden" name="transaction_type" value="aluguel">
+              <button type="submit" class="bg-blue-600 text-white px-2.5 py-1 rounded text-xs hover:bg-blue-700">
+                &#9654; Aluguel
+              </button>
+            </form>
+            <form hx-post="/scraping/trigger-sites" hx-target="#scraping-status" hx-swap="innerHTML" class="inline">
+              <input type="hidden" name="transaction_type" value="compra">
+              <button type="submit" class="bg-green-600 text-white px-2.5 py-1 rounded text-xs hover:bg-green-700">
+                &#9654; Compra
+              </button>
+            </form>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider w-20">Enrichment</span>
+            <form hx-post="/enrichment/trigger" hx-target="#scraping-status" hx-swap="innerHTML" class="inline">
+              <button type="submit" class="bg-gray-500 text-white px-2.5 py-1 rounded text-xs hover:bg-gray-400">
+                &#9654; Tudo
+              </button>
+            </form>
+            <form hx-post="/enrichment/trigger-sites" hx-target="#scraping-status" hx-swap="innerHTML" class="inline">
+              <input type="hidden" name="transaction_type" value="aluguel">
+              <button type="submit" class="bg-blue-400 text-white px-2.5 py-1 rounded text-xs hover:bg-blue-500">
+                &#9654; Aluguel
+              </button>
+            </form>
+            <form hx-post="/enrichment/trigger-sites" hx-target="#scraping-status" hx-swap="innerHTML" class="inline">
+              <input type="hidden" name="transaction_type" value="compra">
+              <button type="submit" class="bg-green-400 text-white px-2.5 py-1 rounded text-xs hover:bg-green-500">
+                &#9654; Compra
+              </button>
+            </form>
+          </div>
         </div>
       </div>
       {# Status indicator: recebe resposta dos triggers e ativa SSE #}

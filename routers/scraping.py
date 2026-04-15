@@ -5,7 +5,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sse_starlette.sse import EventSourceResponse
 from routers.auth import require_login
-from scrapers.runner import run_scraping, get_event_queue, is_running, get_running_info
+from scrapers.runner import run_scraping, run_enrichment_only, get_event_queue, is_running, get_running_info
 from storage.database import get_connection, get_sites, get_last_run
 
 router = APIRouter()
@@ -34,9 +34,7 @@ async def trigger_scraping(request: Request, background_tasks: BackgroundTasks):
     if not require_login(request):
         return HTMLResponse(status_code=401)
     if is_running():
-        info = get_running_info()
-        detail = f" ({info['label']} — {info['elapsed']})" if info else ""
-        return HTMLResponse(content=f'<p class="text-yellow-400 text-xs">Scraping j&#225; em execu&#231;&#227;o{detail}</p>')
+        return HTMLResponse(content=_already_running_html())
     form = await request.form()
     force_images = form.get("force_images") in ("1", "on", "true")
     conn = get_connection()
@@ -55,9 +53,7 @@ async def trigger_scraping_sites(request: Request, background_tasks: BackgroundT
     if not require_login(request):
         return HTMLResponse(status_code=401)
     if is_running():
-        info = get_running_info()
-        detail = f" ({info['label']} — {info['elapsed']})" if info else ""
-        return HTMLResponse(content=f'<p class="text-yellow-400 text-xs">Scraping j&#225; em execu&#231;&#227;o{detail}</p>')
+        return HTMLResponse(content=_already_running_html())
     form = await request.form()
     site_name = str(form.get("site_name", "")).strip()
     transaction_type = str(form.get("transaction_type", "")).strip()
@@ -121,6 +117,34 @@ async def scraping_stream(request: Request):
                 yield {"data": ""}  # keepalive ping
 
     return EventSourceResponse(event_generator())
+
+
+def _already_running_html() -> str:
+    info = get_running_info()
+    detail = f" ({info['label']} — {info['elapsed']})" if info else ""
+    return f'<p class="text-yellow-400 text-xs">Scraping j&#225; em execu&#231;&#227;o{detail}</p>'
+
+
+@router.post("/enrichment/trigger", response_class=HTMLResponse)
+async def trigger_enrichment(request: Request, background_tasks: BackgroundTasks):
+    if not require_login(request):
+        return HTMLResponse(status_code=401)
+    if is_running():
+        return HTMLResponse(content=_already_running_html())
+    background_tasks.add_task(run_enrichment_only, transaction_type="")
+    return HTMLResponse(content=_SSE_HTML)
+
+
+@router.post("/enrichment/trigger-sites", response_class=HTMLResponse)
+async def trigger_enrichment_sites(request: Request, background_tasks: BackgroundTasks):
+    if not require_login(request):
+        return HTMLResponse(status_code=401)
+    if is_running():
+        return HTMLResponse(content=_already_running_html())
+    form = await request.form()
+    transaction_type = str(form.get("transaction_type", "")).strip()
+    background_tasks.add_task(run_enrichment_only, transaction_type=transaction_type)
+    return HTMLResponse(content=_SSE_HTML)
 
 
 @router.get("/scraping/last-run", response_class=HTMLResponse)

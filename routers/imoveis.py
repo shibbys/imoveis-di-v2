@@ -25,6 +25,24 @@ def _site_display_name(name: str) -> str:
 
 templates.env.filters["site_name"] = _site_display_name
 
+
+def _format_duration(seconds) -> str:
+    """Convert seconds to a human-readable duration string (e.g. '1h 4m 32s')."""
+    try:
+        total = int(seconds)
+    except (TypeError, ValueError):
+        return "—"
+    hours, remainder = divmod(total, 3600)
+    minutes, secs = divmod(remainder, 60)
+    if hours:
+        return f"{hours}h {minutes}m {secs}s"
+    if minutes:
+        return f"{minutes}m {secs}s"
+    return f"{secs}s"
+
+
+templates.env.filters["format_duration"] = _format_duration
+
 STATUSES = [
     "Novo", "Em análise", "Interessante", "Visita agendada",
     "Visitado", "Não tem interesse", "Descartado"

@@ -481,3 +481,113 @@ async def run_scraping(sites_config: Optional[list] = None) -> None:
         threading.Thread(target=_thread, daemon=True, name="scraping").start()
     else:
         await _scraping_body(put_event, conn, run_id, sites_config, start_time)
+
+
+async def _enrichment_body(
+    put_event: Callable[[str], None],
+    conn,
+    transaction_type: str,
+) -> None:
+    global _running, _running_since, _running_label
+    try:
+        query = """
+            SELECT i.id, i.source_site, i.source_url, s.platform
+            FROM imoveis i
+            JOIN sites s ON s.name = i.source_site
+            WHERE i.is_active = 1
+              AND NOT EXISTS (SELECT 1 FROM imovel_imagens WHERE imovel_id = i.id)
+        """
+        params: list = []
+        if transaction_type:
+            query += " AND i.transaction_type = ?"
+            params.append(transaction_type)
+
+        rows = conn.execute(query, params).fetchall()
+
+        if not rows:
+            put_event(json.dumps({"type": "done", "summary": "Nenhum imóvel sem fotos."}))
+            return
+
+        enrich_items = [
+            {
+                "id": r["id"],
+                "site_name": r["source_site"],
+                "platform": r["platform"],
+                "url": r["source_url"],
+            }
+            for r in rows
+        ]
+        total = len(enrich_items)
+
+        put_event(json.dumps({
+            "type": "enrich_start", "base": "batch", "display": "Enrichment",
+            "total": total,
+        }))
+
+        def _on_progress(imovel_id: str, current: int, total_: int) -> None:
+            put_event(json.dumps({
+                "type": "enrich_progress", "base": "batch",
+                "current": current, "total": total_,
+            }))
+
+        enriched = await enrich_properties_batch(enrich_items, _on_progress)
+
+        enriched_count = 0
+        for imovel_id, images in enriched.items():
+            if images:
+                conn.execute("DELETE FROM imovel_imagens WHERE imovel_id=?", [imovel_id])
+                for i, url in enumerate(images):
+                    conn.execute(
+                        "INSERT INTO imovel_imagens (imovel_id, url, position) VALUES (?,?,?)",
+                        [imovel_id, url, i],
+                    )
+                enriched_count += 1
+        conn.commit()
+
+        put_event(json.dumps({"type": "done", "summary": f"{enriched_count}/{total} enriquecidos."}))
+
+    except Exception as e:
+        put_event(json.dumps({"type": "done", "summary": f"Erro: {str(e)[:100]}"}))
+    finally:
+        conn.close()
+        _running = False
+        _running_since = None
+        _running_label = ""
+
+
+async def run_enrichment_only(transaction_type: str = "") -> None:
+    """Enrich (fetch images for) all active properties without images."""
+    global _running, _running_since, _running_label
+    if _running:
+        return
+    _running = True
+    _running_since = datetime.now(tz=_BRT)
+    if transaction_type == "aluguel":
+        _running_label = "Enrichment Aluguel"
+    elif transaction_type == "compra":
+        _running_label = "Enrichment Compra"
+    else:
+        _running_label = "Enrichment Tudo"
+
+    main_loop = asyncio.get_running_loop()
+    queue = get_event_queue()
+
+    def put_event(item: str) -> None:
+        main_loop.call_soon_threadsafe(queue.put_nowait, item)
+
+    conn = get_connection()
+
+    if sys.platform == "win32":
+        def _thread() -> None:
+            loop = asyncio.ProactorEventLoop()
+            asyncio.set_event_loop(loop)
+            try:
+                loop.run_until_complete(
+                    _enrichment_body(put_event, conn, transaction_type)
+                )
+            finally:
+                loop.close()
+
+        threading.Thread(target=_thread, daemon=True, name="enrichment").start()
+    else:
+        await _enrichment_body(put_event, conn, transaction_type)
