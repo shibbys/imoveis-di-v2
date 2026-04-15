@@ -16,6 +16,17 @@
     <input type="hidden" id="sort-field" name="sort" value="first_seen">
     <input type="hidden" id="sort-dir" name="sort_dir" value="desc">
     <div class="space-y-2.5 text-sm">
+      <div>
+        <label class="block text-[10px] font-semibold text-gray-400 mb-1 uppercase tracking-wider">Status</label>
+        <select name="status" onchange="this.form.requestSubmit()"
+                class="w-full border rounded px-2 py-1.5 text-xs bg-white transition-colors
+                       {% if filters.get('status') %}border-blue-400 ring-1 ring-blue-200 text-blue-700{% else %}border-gray-200 text-gray-700 hover:border-gray-300{% endif %}">
+          <option value="">Todos</option>
+          {% for s in filter_options.statuses %}
+          <option value="{{ s }}" {% if filters.get('status') == s %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
 
       <div>
         <label class="block text-[10px] font-semibold text-gray-400 mb-1 uppercase tracking-wider">Alterações</label>
@@ -40,19 +51,7 @@
           {% endfor %}
         </select>
       </div>
-
-      <div>
-        <label class="block text-[10px] font-semibold text-gray-400 mb-1 uppercase tracking-wider">Status</label>
-        <select name="status" onchange="this.form.requestSubmit()"
-                class="w-full border rounded px-2 py-1.5 text-xs bg-white transition-colors
-                       {% if filters.get('status') %}border-blue-400 ring-1 ring-blue-200 text-blue-700{% else %}border-gray-200 text-gray-700 hover:border-gray-300{% endif %}">
-          <option value="">Todos</option>
-          {% for s in filter_options.statuses %}
-          <option value="{{ s }}" {% if filters.get('status') == s %}selected{% endif %}>{{ s }}</option>
-          {% endfor %}
-        </select>
-      </div>
-
+      
       <div>
         <label class="block text-[10px] font-semibold text-gray-400 mb-1 uppercase tracking-wider">Bairro</label>
         <select name="neighborhood" onchange="this.form.requestSubmit()"
