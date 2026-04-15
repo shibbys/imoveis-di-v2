@@ -6,9 +6,12 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# apt-get update necessário antes do playwright instalar as dependências de sistema
+# Instala o chromium do sistema (Debian 12 Bookworm, arm64) — puxa todas as
+# libs necessárias como dependência. Depois playwright install chromium baixa
+# o binário gerenciado sem tentar instalar pacotes de sistema (evita conflito
+# com nomes de fonte renomeados no Bookworm: ttf-unifont → fonts-unifont).
 RUN apt-get update && \
-    playwright install-deps chromium && \
+    apt-get install -y --no-install-recommends chromium && \
     playwright install chromium && \
     rm -rf /var/lib/apt/lists/*
 
