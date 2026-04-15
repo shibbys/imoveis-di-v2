@@ -1,0 +1,9 @@
+.venv
+__pycache__
+*.pyc
+*.pyo
+workspaces/
+data/
+.env
+.git
+storage/imoveis_old.xlsx

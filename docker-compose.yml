@@ -1,0 +1,9 @@
+services:
+  imoveis-di:
+    build: .
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./data:/data   # DB e workspaces persistidos fora do container
+    env_file: .env
+    restart: unless-stopped
