@@ -19,6 +19,8 @@ from storage.database import get_connection, get_sites
 # Module-level state
 _event_queue: Optional[asyncio.Queue] = None
 _running: bool = False
+_running_since: Optional[datetime] = None
+_running_label: str = ""
 
 
 def get_event_queue() -> asyncio.Queue:
@@ -30,6 +32,16 @@ def get_event_queue() -> asyncio.Queue:
 
 def is_running() -> bool:
     return _running
+
+
+def get_running_info() -> Optional[dict]:
+    """Returns info about the current run, or None if not running."""
+    if not _running or _running_since is None:
+        return None
+    elapsed = int((datetime.now(tz=_BRT) - _running_since).total_seconds())
+    minutes, seconds = divmod(elapsed, 60)
+    elapsed_str = f"{minutes}m {seconds}s" if minutes else f"{seconds}s"
+    return {"label": _running_label, "elapsed": elapsed_str}
 
 
 def _base_name(site_name: str) -> str:
@@ -393,6 +405,8 @@ async def _scraping_body(
         conn.commit()
         conn.close()
         _running = False
+        _running_since = None
+        _running_label = ""
 
 
 async def run_scraping(sites_config: Optional[list] = None) -> None:
@@ -405,10 +419,25 @@ async def run_scraping(sites_config: Optional[list] = None) -> None:
     with a dedicated ProactorEventLoop, pushing events back to the main loop
     via call_soon_threadsafe.
     """
-    global _running
+    global _running, _running_since, _running_label
     if _running:
         return
     _running = True
+    _running_since = datetime.now(tz=_BRT)
+
+    # Build a readable label from sites_config (set before actual scraping starts)
+    if sites_config is not None:
+        types = {s.get("transaction_type", "") for s in sites_config}
+        if len(sites_config) == 1:
+            _running_label = sites_config[0].get("name", "").replace("_", " ").title()
+        elif types == {"aluguel"}:
+            _running_label = "Aluguel"
+        elif types == {"compra"}:
+            _running_label = "Compra"
+        else:
+            _running_label = "Tudo"
+    else:
+        _running_label = "Tudo"
 
     main_loop = asyncio.get_running_loop()
     queue = get_event_queue()

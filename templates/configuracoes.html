@@ -32,7 +32,10 @@
         </div>
       </div>
       {# Status indicator: recebe resposta dos triggers e ativa SSE #}
-      <div id="scraping-status" class="text-xs text-gray-400 mb-2 min-h-[18px]"></div>
+      <div id="scraping-status" class="text-xs text-gray-400 mb-2 min-h-[18px]"
+           hx-get="/scraping/status"
+           hx-trigger="load"
+           hx-swap="innerHTML"></div>
 
       <div class="overflow-x-auto">
         <table class="text-sm border-collapse w-full">

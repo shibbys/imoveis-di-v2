@@ -292,6 +292,7 @@ def get_imoveis(conn: sqlite3.Connection, transaction_type: str,
     reviewed_col = f"last_reviewed_{transaction_type}_at"
     sql = f"""
         SELECT i.*,
+          (SELECT COUNT(*) FROM imovel_imagens WHERE imovel_id = i.id) AS image_count,
           CASE WHEN i.is_active = 0 THEN 'removed'
                ELSE (SELECT change_flag FROM historico
                      WHERE imovel_id = i.id

@@ -27,7 +27,7 @@
       {% endif %}
       <a href="{{ imovel.source_url }}" target="_blank" rel="noopener"
          onclick="event.stopPropagation()"
-         class="font-medium text-gray-800 hover:text-blue-600 hover:underline truncate max-w-[180px] block">
+         class="font-medium text-gray-800 hover:text-blue-600 hover:underline">
         {{ imovel.title or imovel.category or "—" }}
       </a>
     </div>
@@ -41,6 +41,7 @@
     {% if imovel.area_m2 %}{{ imovel.area_m2 | int }} m²{% else %}—{% endif %}
   </td>
   <td class="py-2 pr-3 text-gray-500 text-xs truncate max-w-[110px]">{{ imovel.source_site | site_name }}</td>
+  <td class="py-2 pr-3 text-gray-400 text-xs text-center">{{ imovel.image_count if imovel.image_count else '—' }}</td>
   <td class="py-2" onclick="event.stopPropagation()">
     <div class="flex items-center gap-1.5">
       <span class="w-2 h-2 rounded-full shrink-0

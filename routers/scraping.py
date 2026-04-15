@@ -5,7 +5,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sse_starlette.sse import EventSourceResponse
 from routers.auth import require_login
-from scrapers.runner import run_scraping, get_event_queue, is_running
+from scrapers.runner import run_scraping, get_event_queue, is_running, get_running_info
 from storage.database import get_connection, get_sites, get_last_run
 
 router = APIRouter()
@@ -34,7 +34,9 @@ async def trigger_scraping(request: Request, background_tasks: BackgroundTasks):
     if not require_login(request):
         return HTMLResponse(status_code=401)
     if is_running():
-        return HTMLResponse(content='<p class="text-yellow-400 text-xs">Scraping j&#225; em execu&#231;&#227;o...</p>')
+        info = get_running_info()
+        detail = f" ({info['label']} — {info['elapsed']})" if info else ""
+        return HTMLResponse(content=f'<p class="text-yellow-400 text-xs">Scraping j&#225; em execu&#231;&#227;o{detail}</p>')
     form = await request.form()
     force_images = form.get("force_images") in ("1", "on", "true")
     conn = get_connection()
@@ -53,7 +55,9 @@ async def trigger_scraping_sites(request: Request, background_tasks: BackgroundT
     if not require_login(request):
         return HTMLResponse(status_code=401)
     if is_running():
-        return HTMLResponse(content='<p class="text-yellow-400 text-xs">Scraping j&#225; em execu&#231;&#227;o...</p>')
+        info = get_running_info()
+        detail = f" ({info['label']} — {info['elapsed']})" if info else ""
+        return HTMLResponse(content=f'<p class="text-yellow-400 text-xs">Scraping j&#225; em execu&#231;&#227;o{detail}</p>')
     form = await request.form()
     site_name = str(form.get("site_name", "")).strip()
     transaction_type = str(form.get("transaction_type", "")).strip()
@@ -79,6 +83,18 @@ async def trigger_scraping_sites(request: Request, background_tasks: BackgroundT
 
     background_tasks.add_task(run_scraping, sites_config=sites)
     return HTMLResponse(content=_SSE_HTML)
+
+
+@router.get("/scraping/status", response_class=HTMLResponse)
+async def scraping_status(request: Request):
+    if not require_login(request):
+        return HTMLResponse(status_code=401)
+    info = get_running_info()
+    if info:
+        return HTMLResponse(
+            content=f'<p class="text-yellow-400 text-xs">&#9654; Scraping em execu&#231;&#227;o: {info["label"]} — {info["elapsed"]}</p>'
+        )
+    return HTMLResponse(content="")
 
 
 @router.get("/scraping/stream")
