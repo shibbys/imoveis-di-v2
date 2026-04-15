@@ -284,9 +284,10 @@ _SORT_COLUMNS = {"first_seen", "last_seen", "price", "neighborhood", "bedrooms",
 
 def get_imoveis(conn: sqlite3.Connection, transaction_type: str,
                 site: str = "", status: str = "", neighborhood: str = "",
-                category: str = "", price_min: float = 0, price_max: float = 0,
+                category: str = "",
                 sort: str = "first_seen", sort_dir: str = "desc",
                 include_inactive: bool = False,
+                change_since: str = "",
                 ) -> list:
     reviewed_col = f"last_reviewed_{transaction_type}_at"
     sql = f"""
@@ -303,7 +304,8 @@ def get_imoveis(conn: sqlite3.Connection, transaction_type: str,
         FROM imoveis i
         WHERE i.transaction_type = ?
     """
-    if not include_inactive:
+    # When filtering for removed properties, inactive rows must be included
+    if not include_inactive and change_since != "removed":
         sql += " AND i.is_active = 1"
     params: list = [transaction_type]
     if site:
@@ -318,15 +320,14 @@ def get_imoveis(conn: sqlite3.Connection, transaction_type: str,
     if category:
         sql += " AND i.category = ?"
         params.append(category)
-    if price_min:
-        sql += " AND i.price >= ?"
-        params.append(price_min)
-    if price_max:
-        sql += " AND i.price <= ?"
-        params.append(price_max)
     col = sort if sort in _SORT_COLUMNS else "first_seen"
     direction = "ASC" if sort_dir.lower() == "asc" else "DESC"
-    sql += f" ORDER BY i.{col} {direction}"
+    if change_since:
+        sql = f"SELECT * FROM ({sql}) sub WHERE sub.latest_change_flag = ?"
+        params.append(change_since)
+        sql += f" ORDER BY {col} {direction}"
+    else:
+        sql += f" ORDER BY i.{col} {direction}"
     return conn.execute(sql, params).fetchall()
 
 

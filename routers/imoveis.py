@@ -37,6 +37,7 @@ STATUS_COLORS = {
 }
 
 
+
 def _filter_options(conn, tipo: str) -> dict:
     return {
         "sites": get_distinct_values(conn, tipo, "source_site"),
@@ -176,20 +177,18 @@ async def partial_imoveis(
     status: str = "",
     neighborhood: str = "",
     category: str = "",
-    price_min: str = "",
-    price_max: str = "",
     sort: str = "first_seen",
     sort_dir: str = "desc",
     include_inactive: str = "",
+    change_since: str = "",
 ):
     if not require_login(request):
         return HTMLResponse(status_code=401)
-    pm = float(price_min) if price_min.strip() else 0.0
-    px = float(price_max) if price_max.strip() else 0.0
     show_inactive = include_inactive in ("1", "true", "on")
     conn = get_connection()
     imoveis = get_imoveis(conn, tipo, site, status, neighborhood, category,
-                          pm, px, sort, sort_dir, include_inactive=show_inactive)
+                          sort, sort_dir, include_inactive=show_inactive,
+                          change_since=change_since)
     conn.close()
     return templates.TemplateResponse(request, "partials/_imovel_tabela.html", {
         "imoveis": imoveis,
@@ -199,8 +198,8 @@ async def partial_imoveis(
         "sort_dir": sort_dir,
         "filters": {
             "site": site, "status": status, "neighborhood": neighborhood,
-            "category": category, "price_min": price_min, "price_max": price_max,
-            "include_inactive": include_inactive,
+            "category": category, "include_inactive": include_inactive,
+            "change_since": change_since,
         },
     })
 

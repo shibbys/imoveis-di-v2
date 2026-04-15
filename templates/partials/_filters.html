@@ -1,7 +1,7 @@
 <div class="bg-white rounded-lg border border-gray-200 p-3">
   <div class="flex items-center justify-between mb-3">
     <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Filtros</span>
-    {% set active_count = (1 if filters.get('site') else 0) + (1 if filters.get('status') else 0) + (1 if filters.get('neighborhood') else 0) + (1 if filters.get('category') else 0) + (1 if filters.get('price_min') else 0) + (1 if filters.get('price_max') else 0) %}
+    {% set active_count = (1 if filters.get('site') else 0) + (1 if filters.get('status') else 0) + (1 if filters.get('neighborhood') else 0) + (1 if filters.get('category') else 0) + (1 if filters.get('change_since') else 0) %}
     {% if active_count > 0 %}
     <span class="text-[10px] font-bold bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full leading-none">{{ active_count }}</span>
     {% endif %}
@@ -16,6 +16,18 @@
     <input type="hidden" id="sort-field" name="sort" value="first_seen">
     <input type="hidden" id="sort-dir" name="sort_dir" value="desc">
     <div class="space-y-2.5 text-sm">
+
+      <div>
+        <label class="block text-[10px] font-semibold text-gray-400 mb-1 uppercase tracking-wider">Alterações</label>
+        <select name="change_since" onchange="this.form.requestSubmit()"
+                class="w-full border rounded px-2 py-1.5 text-xs bg-white transition-colors
+                       {% if filters.get('change_since') %}border-blue-400 ring-1 ring-blue-200 text-blue-700{% else %}border-gray-200 text-gray-700 hover:border-gray-300{% endif %}">
+          <option value="">Todos</option>
+          <option value="new"     {% if filters.get('change_since') == 'new'     %}selected{% endif %}>Novos</option>
+          <option value="updated" {% if filters.get('change_since') == 'updated' %}selected{% endif %}>Atualizados</option>
+          <option value="removed" {% if filters.get('change_since') == 'removed' %}selected{% endif %}>Removidos</option>
+        </select>
+      </div>
 
       <div>
         <label class="block text-[10px] font-semibold text-gray-400 mb-1 uppercase tracking-wider">Imobiliária</label>
@@ -65,20 +77,6 @@
         </select>
       </div>
 
-      <div>
-        <label class="block text-[10px] font-semibold text-gray-400 mb-1 uppercase tracking-wider">Preço (R$)</label>
-        <div class="flex gap-1.5">
-          <input type="number" name="price_min" value="{{ filters.get('price_min') or '' }}"
-                 placeholder="Mín" min="0" onchange="this.form.requestSubmit()"
-                 class="w-full border rounded px-2 py-1.5 text-xs transition-colors
-                        {% if filters.get('price_min') %}border-blue-400 ring-1 ring-blue-200{% else %}border-gray-200 hover:border-gray-300{% endif %}">
-          <input type="number" name="price_max" value="{{ filters.get('price_max') or '' }}"
-                 placeholder="Máx" min="0" onchange="this.form.requestSubmit()"
-                 class="w-full border rounded px-2 py-1.5 text-xs transition-colors
-                        {% if filters.get('price_max') %}border-blue-400 ring-1 ring-blue-200{% else %}border-gray-200 hover:border-gray-300{% endif %}">
-        </div>
-      </div>
-
       <div class="pt-2 border-t border-gray-100">
         <label class="flex items-center gap-2 text-xs text-gray-600 cursor-pointer select-none">
           <input type="checkbox" name="include_inactive" value="1"
@@ -91,7 +89,7 @@
 
       {% if active_count > 0 %}
       <button type="button"
-              onclick="document.querySelectorAll('#filter-form select').forEach(s=>s.value='');document.querySelectorAll('#filter-form input[type=number]').forEach(i=>i.value='');document.querySelector('#filter-form input[name=include_inactive]').checked=false;document.getElementById('filter-form').requestSubmit()"
+              onclick="document.querySelectorAll('#filter-form select').forEach(s=>s.value='');document.querySelector('#filter-form input[name=include_inactive]').checked=false;document.getElementById('filter-form').requestSubmit()"
               class="w-full text-xs text-gray-400 hover:text-red-500 hover:bg-red-50 border border-gray-200 hover:border-red-200 rounded py-1 transition-colors">
         Limpar filtros
       </button>
