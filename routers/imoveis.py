@@ -78,7 +78,7 @@ def _listing_page(request: Request, tipo: str):
         "tipo": tipo,
         "username": request.session.get("username"),
         "changes": changes,
-        "filters": {},
+        "filters": {"status": "Novo"},
         "filter_options": options,
     })
 
