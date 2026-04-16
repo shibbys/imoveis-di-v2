@@ -101,6 +101,15 @@
           ex: <code class="font-mono">0 7 * * *</code> = todo dia às 7h
         </p>
       </form>
+
+      <div class="mt-5">
+        <h3 class="font-medium text-sm mb-2 text-gray-700">Última run</h3>
+        <div id="last-run-log"
+             hx-get="/scraping/last-run"
+             hx-trigger="load"
+             hx-swap="innerHTML"
+             class="text-xs text-gray-500">Carregando...</div>
+      </div>
     </div>
 
   </div>
