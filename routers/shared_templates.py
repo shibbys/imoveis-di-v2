@@ -17,9 +17,9 @@ def _format_duration(seconds) -> str:
     hours, remainder = divmod(total, 3600)
     minutes, secs = divmod(remainder, 60)
     if hours:
-        return f"{hours}h {minutes}m {secs}s"
+        return f"{hours}h {minutes}m"
     if minutes:
-        return f"{minutes}m {secs}s"
+        return f"{minutes}m"
     return f"{secs}s"
 
 
