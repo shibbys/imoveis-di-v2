@@ -323,13 +323,11 @@ class FelippeAlfredoScraper(BaseScraper):
                         ct = response.headers.get("content-type", "")
                         if "json" not in ct:
                             return
-                        rurl = response.url
-                        if "_next/data" not in rurl and not any(
-                            kw in rurl
-                            for kw in ["imovel", "propert", "listing", "busca", "search", "ofert"]
-                        ):
-                            return
+                        # No URL filter — rely on _find_property_arrays to gate quality.
+                        # The lazy-load API endpoint URL is unknown; checking content is safer.
                         body = await response.body()
+                        if len(body) < 200:  # skip tiny responses (tracking pixels etc.)
+                            return
                         data = json.loads(body)
                         found = _find_property_arrays(data)
                         if found:
@@ -350,8 +348,13 @@ class FelippeAlfredoScraper(BaseScraper):
                 except Exception:
                     pass
 
-                # ── Scroll triggers lazy-load API fetches ─────────────────────
-                await _scroll_until_stable(page, _CARD_SEL)
+                # ── Extract total count from page ("81 resultados") ───────────
+                initial_html = await page.content()
+                m = re.search(r"(\d+)\s+resultado", initial_html, re.IGNORECASE)
+                total_expected = int(m.group(1)) if m else None
+
+                # ── Scroll until we reach total or stable ─────────────────────
+                await _scroll_until_count(page, _CARD_SEL, total_expected)
 
                 html = await page.content()
                 soup = BeautifulSoup(html, "html.parser")
