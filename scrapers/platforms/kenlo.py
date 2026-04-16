@@ -346,7 +346,10 @@ class KenloScraper(BaseScraper):
 
                     if scroll:
                         await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                        await page.wait_for_timeout(1500)
+                        try:
+                            await page.wait_for_selector(self.CARD_SELECTOR, timeout=10000)
+                        except Exception:
+                            await page.wait_for_timeout(1500)
                         await page.evaluate("window.scrollTo(0, 0)")
                         await page.wait_for_timeout(500)
 
