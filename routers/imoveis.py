@@ -2,7 +2,6 @@ import re
 import folium
 from fastapi import APIRouter, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut, GeocoderUnavailable
 from storage.database import (
@@ -14,34 +13,7 @@ from storage.database import (
 from routers.auth import require_login
 
 router = APIRouter()
-templates = Jinja2Templates(directory="templates")
-
-
-def _site_display_name(name: str) -> str:
-    """Convert scraper ID (e.g. 'felippe_alfredo_compra') to display name ('Felippe Alfredo')."""
-    name = re.sub(r"_(compra|aluguel)$", "", name)
-    return name.replace("_", " ").title()
-
-
-templates.env.filters["site_name"] = _site_display_name
-
-
-def _format_duration(seconds) -> str:
-    """Convert seconds to a human-readable duration string (e.g. '1h 4m 32s')."""
-    try:
-        total = int(seconds)
-    except (TypeError, ValueError):
-        return "—"
-    hours, remainder = divmod(total, 3600)
-    minutes, secs = divmod(remainder, 60)
-    if hours:
-        return f"{hours}h {minutes}m {secs}s"
-    if minutes:
-        return f"{minutes}m {secs}s"
-    return f"{secs}s"
-
-
-templates.env.filters["format_duration"] = _format_duration
+from routers.shared_templates import templates, _site_display_name
 
 STATUSES = [
     "Novo", "Em análise", "Interessante", "Visita agendada",

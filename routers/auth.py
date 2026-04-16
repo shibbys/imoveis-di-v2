@@ -1,11 +1,10 @@
 import bcrypt
 from fastapi import APIRouter, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from storage.database import get_connection, get_user_by_username
 
 router = APIRouter()
-templates = Jinja2Templates(directory="templates")
+from routers.shared_templates import templates
 
 
 def get_current_user_id(request: Request) -> int | None:

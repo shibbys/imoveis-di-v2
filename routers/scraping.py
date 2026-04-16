@@ -2,14 +2,13 @@ import asyncio
 import json
 from fastapi import APIRouter, Request, BackgroundTasks
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from sse_starlette.sse import EventSourceResponse
 from routers.auth import require_login
 from scrapers.runner import run_scraping, run_enrichment_only, get_event_queue, is_running, get_running_info
 from storage.database import get_connection, get_sites, get_last_run
 
 router = APIRouter()
-templates = Jinja2Templates(directory="templates")
+from routers.shared_templates import templates
 
 _LOG_TABLE_HEADER = """
 <table class="w-full text-sm border-collapse">

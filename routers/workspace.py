@@ -2,7 +2,6 @@ import re
 from collections import OrderedDict
 from fastapi import APIRouter, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from storage.database import (
     get_connection, mark_reviewed, update_schedule, get_workspace,
     get_sites, update_site, get_site_counts, get_last_run_per_base,
@@ -10,7 +9,7 @@ from storage.database import (
 from routers.auth import require_login
 
 router = APIRouter()
-templates = Jinja2Templates(directory="templates")
+from routers.shared_templates import templates
 
 
 def _site_display(base: str) -> str:
