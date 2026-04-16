@@ -14,6 +14,7 @@ from scrapers.platforms.lis import LisScraper
 from scrapers.platforms.joelblume import JoelBlumeScraper
 from scrapers.platforms.imoview import ImoviewScraper
 from scrapers.platforms.dapper import DapperScraper
+from scrapers.platforms.felippealfredo import FelippeAlfredoScraper
 
 PLATFORM_MAP: dict[str, type] = {
     "kenlo": KenloScraper,
@@ -31,6 +32,7 @@ PLATFORM_MAP: dict[str, type] = {
     "joelblume": JoelBlumeScraper,
     "imoview": ImoviewScraper,
     "dapper": DapperScraper,
+    "felippealfredo": FelippeAlfredoScraper,
 }
 
 
