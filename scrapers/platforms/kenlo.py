@@ -337,19 +337,19 @@ class KenloScraper(BaseScraper):
                 )
 
                 for _ in range(self.max_pages):
+                    wait_sel = getattr(self, "WAIT_SELECTOR", self.CARD_SELECTOR)
                     await page.goto(current_url, wait_until="load", timeout=30000)
                     try:
-                        await page.wait_for_selector(self.CARD_SELECTOR, timeout=15000)
+                        await page.wait_for_selector(wait_sel, timeout=15000)
                     except Exception:
                         pass
-                    await page.wait_for_timeout(500)
 
                     if scroll:
                         await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
                         try:
-                            await page.wait_for_selector(self.CARD_SELECTOR, timeout=10000)
+                            await page.wait_for_selector(wait_sel, timeout=10000)
                         except Exception:
-                            await page.wait_for_timeout(1500)
+                            await page.wait_for_timeout(2000)
                         await page.evaluate("window.scrollTo(0, 0)")
                         await page.wait_for_timeout(500)
 
@@ -389,9 +389,10 @@ class KenloScraper(BaseScraper):
                 await page.add_init_script(
                     "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
                 )
+                wait_sel = getattr(self, "WAIT_SELECTOR", self.CARD_SELECTOR)
                 await page.goto(self.url, wait_until="load", timeout=30000)
                 try:
-                    await page.wait_for_selector(self.CARD_SELECTOR, timeout=15000)
+                    await page.wait_for_selector(wait_sel, timeout=15000)
                 except Exception:
                     pass
 

@@ -26,7 +26,8 @@ class JetimobScraper(KenloScraper):
     V2 link: child <a href="/imovel/...">
     """
 
-    CARD_SELECTOR = ".CardProperty, [itemtype*='schema.org']"
+    CARD_SELECTOR = ".CardProperty"
+    WAIT_SELECTOR = "a[href*='/imovel/']"  # V2 lazy-loads; wait for any property link
     NEXT_PAGE_SELECTOR = ""  # not used
 
     def _parse_page(self, soup: BeautifulSoup, base_url: str) -> list:
