@@ -114,7 +114,7 @@ async def mapa(request: Request):
         covers = {r["imovel_id"]: r["url"] for r in rows}
     conn.close()
 
-    m = folium.Map(location=[-29.6167, -51.0833], zoom_start=14)
+    m = folium.Map(location=[-29.5920, -51.0910], zoom_start=13.4)
 
     for im in all_imoveis:
         if not (im["lat"] and im["lng"]):
