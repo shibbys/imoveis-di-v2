@@ -16,23 +16,45 @@ from scrapers.enrichment import enrich_properties_batch
 from scrapers.registry import get_scraper
 from storage.database import get_connection, get_sites
 
-# Module-level state
-_event_queue: Optional[asyncio.Queue] = None
 _running: bool = False
 _running_since: Optional[datetime] = None
 _running_label: str = ""
-
+_running_base: str = ""
+_running_tt: str = ""
+_pending_tasks: list = []
+_live_logs: list = []
+_event_queues = []
 
 def get_event_queue() -> asyncio.Queue:
-    global _event_queue
-    if _event_queue is None:
-        _event_queue = asyncio.Queue()
-    return _event_queue
+    q = asyncio.Queue()
+    _event_queues.append(q)
+    return q
+
+def remove_event_queue(q: asyncio.Queue) -> None:
+    if q in _event_queues:
+        _event_queues.remove(q)
 
 
 def is_running() -> bool:
     return _running
 
+def get_live_state() -> dict:
+    if not _running:
+        return {"status": "idle", "logs": _live_logs[-50:] if _live_logs else []}
+    
+    elapsed = int((datetime.now(tz=_BRT) - _running_since).total_seconds()) if _running_since else 0
+    minutes, seconds = divmod(elapsed, 60)
+    elapsed_str = f"{minutes}m {seconds}s" if minutes else f"{seconds}s"
+    
+    return {
+        "status": "running",
+        "label": _running_label,
+        "elapsed": elapsed_str,
+        "base": _running_base,
+        "transaction_type": _running_tt,
+        "pending": _pending_tasks,
+        "logs": _live_logs[-50:] if _live_logs else []
+    }
 
 def get_running_info() -> Optional[dict]:
     """Returns info about the current run, or None if not running."""
@@ -173,7 +195,7 @@ async def _scraping_body(
     event loop (including a dedicated ProactorEventLoop thread on Windows).
     put_event() is a sync callback — emits JSON-serialised event dicts.
     """
-    global _running
+    global _running, _running_base, _running_tt, _pending_tasks, _live_logs
 
     total_new = 0
     total_updated = 0
@@ -199,6 +221,13 @@ async def _scraping_body(
             base = _base_name(site["name"])
             tt = site.get("transaction_type", "aluguel")
             display = base_display_map[base]
+            
+            _running_base = base
+            _running_tt = tt
+            for idx, p in enumerate(_pending_tasks):
+                if p["base"] == base and p["tt"] == tt:
+                    _pending_tasks.pop(idx)
+                    break
 
             if base not in base_results:
                 base_results[base] = {
@@ -359,14 +388,17 @@ async def _scraping_body(
                     "total_duration": br["total_duration"],
                 }))
 
-            log_lines.append(build_run_log_line(
+            line = build_run_log_line(
                 site["name"],
                 found=len(properties),
                 new=site_new,
                 updated=site_updated,
                 removed=site_removed,
                 error=error_msg,
-            ))
+            )
+            log_lines.append(line)
+            _live_logs.append(line)
+            put_event(json.dumps({"type": "terminal_log", "text": line}))
 
     finally:
         duration = (datetime.now(_BRT) - start_time).total_seconds()
@@ -407,6 +439,9 @@ async def _scraping_body(
         _running = False
         _running_since = None
         _running_label = ""
+        _running_base = ""
+        _running_tt = ""
+        _pending_tasks = []
 
 
 async def run_scraping(sites_config: Optional[list] = None) -> None:
@@ -443,7 +478,8 @@ async def run_scraping(sites_config: Optional[list] = None) -> None:
     queue = get_event_queue()
 
     def put_event(item: str) -> None:
-        main_loop.call_soon_threadsafe(queue.put_nowait, item)
+        for q in _event_queues:
+            main_loop.call_soon_threadsafe(q.put_nowait, item)
 
     run_id = (
         datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
@@ -459,6 +495,10 @@ async def run_scraping(sites_config: Optional[list] = None) -> None:
 
     # Sort: group by base imobiliária, aluguel before compra
     sites_config = _sort_sites(sites_config)
+    
+    global _pending_tasks, _live_logs
+    _live_logs = []
+    _pending_tasks = [{"base": _base_name(s["name"]), "tt": s.get("transaction_type", "aluguel")} for s in sites_config]
 
     conn = get_connection()
     conn.execute(
@@ -469,6 +509,7 @@ async def run_scraping(sites_config: Optional[list] = None) -> None:
 
     if sys.platform == "win32":
         def _thread() -> None:
+            import time; time.sleep(0.5)
             loop = asyncio.ProactorEventLoop()
             asyncio.set_event_loop(loop)
             try:
@@ -480,6 +521,7 @@ async def run_scraping(sites_config: Optional[list] = None) -> None:
 
         threading.Thread(target=_thread, daemon=True, name="scraping").start()
     else:
+        import time; time.sleep(0.5)
         await _scraping_body(put_event, conn, run_id, sites_config, start_time)
 
 
@@ -488,7 +530,12 @@ async def _enrichment_body(
     conn,
     transaction_type: str,
 ) -> None:
-    global _running, _running_since, _running_label
+    global _running, _running_since, _running_label, _running_base, _running_tt, _pending_tasks, _live_logs
+    _running_base = "enrichment"
+    _running_tt = transaction_type
+    _pending_tasks = []
+    _live_logs = []
+    
     try:
         query = """
             SELECT i.id, i.source_site, i.source_url, s.platform
@@ -554,6 +601,9 @@ async def _enrichment_body(
         _running = False
         _running_since = None
         _running_label = ""
+        _running_base = ""
+        _running_tt = ""
+        _pending_tasks = []
 
 
 async def run_enrichment_only(transaction_type: str = "") -> None:
@@ -574,12 +624,14 @@ async def run_enrichment_only(transaction_type: str = "") -> None:
     queue = get_event_queue()
 
     def put_event(item: str) -> None:
-        main_loop.call_soon_threadsafe(queue.put_nowait, item)
+        for q in _event_queues:
+            main_loop.call_soon_threadsafe(q.put_nowait, item)
 
     conn = get_connection()
 
     if sys.platform == "win32":
         def _thread() -> None:
+            import time; time.sleep(0.5)
             loop = asyncio.ProactorEventLoop()
             asyncio.set_event_loop(loop)
             try:
@@ -591,4 +643,5 @@ async def run_enrichment_only(transaction_type: str = "") -> None:
 
         threading.Thread(target=_thread, daemon=True, name="enrichment").start()
     else:
+        import time; time.sleep(0.5)
         await _enrichment_body(put_event, conn, transaction_type)

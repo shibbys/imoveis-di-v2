@@ -102,8 +102,18 @@
         </p>
       </form>
 
+      <div class="mt-5 mb-5">
+        <h3 class="flex items-center justify-between font-medium text-sm mb-2 text-gray-700">
+            Log Rápido (Ao vivo)
+            <span id="live-log-indicator" class="w-2 h-2 rounded-full bg-gray-300 shadow-sm transition-colors duration-500"></span>
+        </h3>
+        <ul id="live-terminal-log" class="text-xs font-mono bg-gray-900 text-green-400 p-3 h-56 overflow-y-auto rounded shadow-inner list-none space-y-1">
+            <li class="text-gray-500">Aguardando tarefas...</li>
+        </ul>
+      </div>
+
       <div class="mt-5">
-        <h3 class="font-medium text-sm mb-2 text-gray-700">Última run</h3>
+        <h3 class="font-medium text-sm mb-2 text-gray-700">Última run completa</h3>
         <div id="last-run-log"
              hx-get="/scraping/last-run"
              hx-trigger="load"

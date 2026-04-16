@@ -4,7 +4,7 @@ from fastapi import APIRouter, Request, BackgroundTasks
 from fastapi.responses import HTMLResponse
 from sse_starlette.sse import EventSourceResponse
 from routers.auth import require_login
-from scrapers.runner import run_scraping, run_enrichment_only, get_event_queue, is_running, get_running_info
+from scrapers.runner import run_scraping, run_enrichment_only, get_event_queue, is_running, get_running_info, get_live_state
 from storage.database import get_connection, get_sites, get_last_run
 
 router = APIRouter()
@@ -25,7 +25,7 @@ _LOG_TABLE_HEADER = """
 </table>
 """
 
-_SSE_HTML = '<p id="scraping-live-status" class="text-xs text-gray-500">Iniciando...</p>'
+_SSE_HTML = '<p id="scraping-live-status" class="text-yellow-400 text-xs">&#9654; Scraping em execu&#231;&#227;o: <span id="current-running-label">Iniciando...</span></p>'
 
 
 @router.post("/scraping/trigger", response_class=HTMLResponse)
@@ -84,12 +84,12 @@ async def trigger_scraping_sites(request: Request, background_tasks: BackgroundT
 async def scraping_status(request: Request):
     if not require_login(request):
         return HTMLResponse(status_code=401)
-    info = get_running_info()
-    if info:
+    info = get_live_state()
+    if info and info["status"] == "running":
         return HTMLResponse(
-            content=f'<p class="text-yellow-400 text-xs">&#9654; Scraping em execu&#231;&#227;o: {info["label"]} — {info["elapsed"]}</p>'
+            content=f'<p class="text-yellow-400 text-xs">&#9654; Scraping em execu&#231;&#227;o: <span id="current-running-label">{info["label"]}</span> — {info["elapsed"]}</p>'
         )
-    return HTMLResponse(content="")
+    return HTMLResponse(content='<p class="text-gray-400 text-xs" id="current-running-label">Verificando tarefas...</p>')
 
 
 @router.get("/scraping/stream")
@@ -99,21 +99,29 @@ async def scraping_stream(request: Request):
 
     queue = get_event_queue()
 
+    from scrapers.runner import remove_event_queue
     async def event_generator():
-        while True:
-            if await request.is_disconnected():
-                break
-            try:
-                msg = await asyncio.wait_for(queue.get(), timeout=30.0)
-                yield {"data": msg}
-                # Detect completion from the structured event
+        # Envia estado inicial assim que conecta
+        state = get_live_state()
+        yield {"data": json.dumps({"type": "init_state", "state": state})}
+        
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
                 try:
-                    if json.loads(msg).get("type") == "done":
-                        break
-                except (json.JSONDecodeError, AttributeError):
-                    pass
-            except asyncio.TimeoutError:
-                yield {"data": ""}  # keepalive ping
+                    msg = await asyncio.wait_for(queue.get(), timeout=30.0)
+                    yield {"data": msg}
+                    # Detect completion from the structured event
+                    try:
+                        if json.loads(msg).get("type") == "done":
+                            break
+                    except (json.JSONDecodeError, AttributeError):
+                        pass
+                except asyncio.TimeoutError:
+                    yield {"data": ""}  # keepalive ping
+        finally:
+            remove_event_queue(queue)
 
     return EventSourceResponse(event_generator())
 

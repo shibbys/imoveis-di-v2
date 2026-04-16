@@ -1,10 +1,15 @@
 // ── Scraping live updates ─────────────────────────────────────────────────────
 
-function startScrapingLog() {
-    var source = new EventSource('/scraping/stream');
-    var statusEl = document.getElementById('scraping-live-status');
+// Global tracking for SSE so we don't duplicate
+var _scrapingSource = null;
 
-    source.onmessage = function (e) {
+function startScrapingLog() {
+    if (_scrapingSource) {
+        _scrapingSource.close();
+    }
+    _scrapingSource = new EventSource('/scraping/stream');
+
+    _scrapingSource.onmessage = function (e) {
         if (!e.data || !e.data.trim()) return; // keepalive ping
         var msg;
         try { msg = JSON.parse(e.data); } catch (_) { return; }
@@ -12,32 +17,125 @@ function startScrapingLog() {
         _handleScrapingEvent(msg);
 
         if (msg.type === 'done') {
-            source.close();
+            _scrapingSource.close();
+            _scrapingSource = null;
+            document.getElementById('live-log-indicator').classList.remove('bg-green-500');
+            document.getElementById('live-log-indicator').classList.add('bg-gray-300');
+            
             var statusDiv = document.getElementById('scraping-status');
+            var currLabel = document.getElementById('current-running-label');
+            if (currLabel) currLabel.textContent = 'Aguardando tarefas...';
+            
             if (statusDiv) {
                 var parts = msg.total_found + ' encontrados';
                 if (msg.total_new)     parts += ' &middot; +' + msg.total_new + ' novos';
                 if (msg.total_updated) parts += ' &middot; ~' + msg.total_updated + ' atualizados';
                 if (msg.total_removed) parts += ' &middot; -' + msg.total_removed + ' removidos';
-                parts += ' &middot; ' + msg.duration + 's';
+                if (msg.duration !== undefined) parts += ' &middot; ' + msg.duration + 's';
                 statusDiv.innerHTML = '<span class="text-gray-400">' + parts + '</span>';
-                setTimeout(function () { statusDiv.innerHTML = ''; }, 8000);
+                
+                // Clear any leftover spinners on the table by hard reloading table body or letting trigger clean it
+                document.querySelectorAll('[id^="site-status-"]').forEach(function (e) {
+                    if (e.innerHTML.includes('svg')) e.innerHTML = '<span class="text-gray-300">—</span>';
+                });
+                
+                setTimeout(function () { 
+                    statusDiv.innerHTML = '<p class="text-gray-400 text-xs" id="current-running-label">Aguardando tarefas...</p>'; 
+                    htmx.ajax('GET', '/scraping/last-run', {target: '#last-run-log', swap: 'innerHTML'});
+                }, 8000);
             }
         }
     };
 
-    source.onerror = function () { source.close(); };
+    _scrapingSource.onerror = function () { 
+        if (_scrapingSource) _scrapingSource.close(); 
+        setTimeout(startScrapingLog, 5000); // Reconnect loop if backend drops
+        document.getElementById('live-log-indicator').classList.remove('bg-green-500');
+        document.getElementById('live-log-indicator').classList.add('bg-gray-300');
+    };
+    
+    document.getElementById('live-log-indicator').classList.remove('bg-gray-300');
+    document.getElementById('live-log-indicator').classList.add('bg-green-500');
+}
+
+function _appendTerminalLog(text) {
+    var cont = document.getElementById('live-terminal-log');
+    if (!cont) return;
+    
+    // Clear initial waiting message
+    if (cont.innerHTML.includes('Aguardando tarefas')) {
+        cont.innerHTML = '';
+    }
+    
+    var li = document.createElement('li');
+    li.textContent = text;
+    cont.appendChild(li);
+    cont.scrollTop = cont.scrollHeight;
 }
 
 function _handleScrapingEvent(msg) {
     var base = msg.base;
 
-    if (msg.type === 'site_start') {
-        // Show spinner in the status cell of this row
+    if (msg.type === 'init_state') {
+        var state = msg.state;
+        
+        var cont = document.getElementById('live-terminal-log');
+        if (cont && state.logs && state.logs.length > 0) {
+            cont.innerHTML = '';
+            state.logs.forEach(function(l) { _appendTerminalLog(l); });
+        }
+        
+        if (state.status === 'running') {
+            document.getElementById('live-log-indicator').classList.replace('bg-gray-300', 'bg-green-500');
+            
+            var cl = document.getElementById('current-running-label');
+            if (cl && state.label) {
+                cl.textContent = state.label;
+            }
+            
+            // Set spinners for pending
+            state.pending.forEach(function(p) {
+                var c = document.getElementById('site-status-' + p.base);
+                if (c && !c.innerHTML.includes('svg')) {
+                    c.innerHTML = '<span class="text-xs text-gray-400">Aguardando...</span>';
+                }
+            });
+            // Set spinner for active
+            if (state.base && state.base !== 'enrichment') {
+                var c = document.getElementById('site-status-' + state.base);
+                if (c) c.innerHTML = _scrapingSpinner();
+            }
+        } else {
+            document.getElementById('live-log-indicator').classList.replace('bg-green-500', 'bg-gray-300');
+        }
+    }
+    else if (msg.type === 'terminal_log') {
+        _appendTerminalLog(msg.text);
+    }
+    else if (msg.type === 'site_start') {
         var statusCell = document.getElementById('site-status-' + base);
         if (statusCell) statusCell.innerHTML = _scrapingSpinner();
+        var cl = document.getElementById('current-running-label');
+        if (cl) cl.textContent = msg.display + ' (' + msg.transaction_type + ')';
+        
+        var date = new Date();
+        var timeStr = date.getHours().toString().padStart(2, '0') + ':' + 
+                      date.getMinutes().toString().padStart(2, '0') + ':' + 
+                      date.getSeconds().toString().padStart(2, '0');
+        _appendTerminalLog('[' + timeStr + '] ' + msg.display + ' (' + msg.transaction_type + ') -> Iniciando...');
     }
-
+    else if (msg.type === 'enrich_start') {
+        var statusCell = document.getElementById('site-status-' + base);
+        if (statusCell && base !== 'batch') statusCell.innerHTML = _scrapingSpinner();
+        var cl = document.getElementById('current-running-label');
+        if (cl) cl.textContent = 'Enrichment (' + msg.total + ')';
+        
+        var date = new Date();
+        var timeStr = date.getHours().toString().padStart(2, '0') + ':' + 
+                      date.getMinutes().toString().padStart(2, '0') + ':' + 
+                      date.getSeconds().toString().padStart(2, '0');
+        _appendTerminalLog('[' + timeStr + '] Enrichment (' + msg.total + ' items) -> Iniciando...');
+    }
     else if (msg.type === 'base_done') {
         // Reload the entire row from the server with fresh DB data
         htmx.ajax('GET', '/configuracoes/site-row/' + base, {
@@ -48,11 +146,17 @@ function _handleScrapingEvent(msg) {
 }
 
 function _scrapingSpinner() {
-    return '<svg class="animate-spin h-3.5 w-3.5 text-blue-400 inline" fill="none" viewBox="0 0 24 24">'
+    return '<svg class="animate-spin h-3.5 w-3.5 text-yellow-400 inline" fill="none" viewBox="0 0 24 24">'
         + '<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>'
         + '<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 22 6.477 22 12h-4z"></path>'
         + '</svg>';
 }
+
+document.addEventListener('DOMContentLoaded', function() {
+    if (document.getElementById('scraping-status')) {
+        startScrapingLog();
+    }
+});
 
 
 // ── Sort table by column ──────────────────────────────────────────────────────
@@ -111,7 +215,9 @@ function initCarousel(id) {
 document.addEventListener('htmx:afterSwap', function (e) {
     // Start SSE when the scraping trigger response is swapped into #scraping-status.
     if (e.target.id === 'scraping-status' && document.getElementById('scraping-live-status')) {
-        startScrapingLog();
+        if (!_scrapingSource || _scrapingSource.readyState === EventSource.CLOSED) {
+            startScrapingLog();
+        }
     }
 
     if (e.target.id === 'detalhe-panel') {
