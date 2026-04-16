@@ -107,21 +107,21 @@ def _parse_card(card, base_url: str, site_name: str, transaction_type: str):
         return None
 
 
-async def _scroll_until_stable(page, card_sel: str, max_rounds: int = 15) -> None:
-    """Scroll to bottom repeatedly until card count stops growing (3 stable rounds)."""
+async def _scroll_until_stable(page, card_sel: str, max_rounds: int = 20) -> None:
+    """Scroll to bottom repeatedly until card count stops growing (5 stable rounds)."""
     prev_count = 0
     stable = 0
     for _ in range(max_rounds):
         count = await page.eval_on_selector_all(card_sel, "els => els.length")
         if count == prev_count:
             stable += 1
-            if stable >= 3:
+            if stable >= 5:
                 break
         else:
             stable = 0
         prev_count = count
         await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-        await page.wait_for_timeout(2000)
+        await page.wait_for_timeout(3500)
 
 
 class FelippeAlfredoScraper(BaseScraper):
