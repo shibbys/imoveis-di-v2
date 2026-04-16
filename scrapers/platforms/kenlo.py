@@ -337,8 +337,12 @@ class KenloScraper(BaseScraper):
                 )
 
                 for _ in range(self.max_pages):
-                    await page.goto(current_url, wait_until="networkidle", timeout=30000)
-                    await page.wait_for_timeout(1000)
+                    await page.goto(current_url, wait_until="load", timeout=30000)
+                    try:
+                        await page.wait_for_selector(self.CARD_SELECTOR, timeout=15000)
+                    except Exception:
+                        pass
+                    await page.wait_for_timeout(500)
 
                     if scroll:
                         await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
@@ -382,8 +386,11 @@ class KenloScraper(BaseScraper):
                 await page.add_init_script(
                     "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
                 )
-                await page.goto(self.url, wait_until="networkidle", timeout=30000)
-                await page.wait_for_timeout(1000)
+                await page.goto(self.url, wait_until="load", timeout=30000)
+                try:
+                    await page.wait_for_selector(self.CARD_SELECTOR, timeout=15000)
+                except Exception:
+                    pass
 
                 # Scroll to trigger lazy-loaded content
                 await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")

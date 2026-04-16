@@ -158,8 +158,11 @@ class ConectaScraper(KenloScraper):
 
                 for page_num in range(1, self.max_pages + 1):
                     url = self._page_url(page_num)
-                    await page.goto(url, wait_until="networkidle", timeout=30000)
-                    await page.wait_for_timeout(800)
+                    await page.goto(url, wait_until="load", timeout=30000)
+                    try:
+                        await page.wait_for_selector('a[href*="/imovel/"]', timeout=15000)
+                    except Exception:
+                        pass  # No cards found on this page — loop will break naturally
                     await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
                     await page.wait_for_timeout(600)
 
