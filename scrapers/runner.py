@@ -495,7 +495,8 @@ async def _enrichment_body(
             FROM imoveis i
             JOIN sites s ON s.name = i.source_site
             WHERE i.is_active = 1
-              AND NOT EXISTS (SELECT 1 FROM imovel_imagens WHERE imovel_id = i.id)
+              AND i.status NOT IN ('Descartado', 'Não tem interesse')
+              AND (SELECT COUNT(*) FROM imovel_imagens WHERE imovel_id = i.id) <= 2
         """
         params: list = []
         if transaction_type:
