@@ -265,27 +265,51 @@ def _parse_card(card, base_url: str, site_name: str, transaction_type: str) -> P
         return None
 
 
-# ── Scroll helper (supplementary — triggers lazy-load API calls) ──────────────
+# ── Scroll helper ────────────────────────────────────────────────────────────
 
-async def _scroll_until_stable(page, card_sel: str, max_rounds: int = 25) -> None:
+async def _scroll_until_count(
+    page, card_sel: str, target: int | None, max_seconds: int = 240
+) -> None:
     """
-    Scroll to bottom in rounds; stop after 5 consecutive rounds with no new
-    cards.  Used mainly to trigger API fetches so the response interceptor
-    can capture them — not as the primary data source.
+    Scroll to bottom repeatedly until the DOM card count reaches `target`
+    (extracted from "N resultados" on the page) or `max_seconds` elapses.
+    If target is unknown, falls back to 5 stable rounds.
+
+    After each scroll we wait for networkidle (so the triggered lazy-load
+    fetch completes before we re-count) with a fixed fallback timeout.
     """
+    import time
+
+    start = time.monotonic()
     prev = 0
     stable = 0
-    for _ in range(max_rounds):
+
+    while True:
         count = await page.eval_on_selector_all(card_sel, "els => els.length")
+
+        if target is not None and count >= target:
+            break
+
+        if time.monotonic() - start > max_seconds:
+            break
+
         if count == prev:
             stable += 1
-            if stable >= 5:
+            if target is None and stable >= 5:
                 break
         else:
             stable = 0
+
         prev = count
         await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-        await page.wait_for_timeout(5000)
+
+        # Wait for the lazy-load fetch triggered by scroll to finish.
+        # networkidle is more accurate than a fixed timeout, but we cap it
+        # so a never-settling analytics call doesn't stall us.
+        try:
+            await page.wait_for_load_state("networkidle", timeout=6000)
+        except Exception:
+            await page.wait_for_timeout(4000)
 
 
 # ── Scraper ───────────────────────────────────────────────────────────────────
