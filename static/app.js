@@ -210,6 +210,33 @@ function initCarousel(id) {
     });
 }
 
+// ── Filter panel toggle ─────────────────────────────────────────────────────
+
+function toggleFilterPanel() {
+    var panel = document.getElementById('filter-panel');
+    if (!panel) return;
+    var content = document.getElementById('filter-content');
+    var chevron = document.getElementById('filter-chevron');
+    var collapsed = panel.dataset.collapsed === 'true';
+    if (collapsed) {
+        panel.classList.replace('w-8', 'w-52');
+        if (content) content.classList.remove('hidden');
+        if (chevron) chevron.style.transform = '';
+        panel.dataset.collapsed = 'false';
+    } else {
+        panel.classList.replace('w-52', 'w-8');
+        if (content) content.classList.add('hidden');
+        if (chevron) chevron.style.transform = 'rotate(180deg)';
+        panel.dataset.collapsed = 'true';
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    if (window.innerWidth < 768 && document.getElementById('filter-panel')) {
+        toggleFilterPanel();
+    }
+});
+
 // After any detail-panel swap, sync the row's status dropdown to match
 // (handles quick-action status changes without needing OOB table row updates).
 document.addEventListener('htmx:afterSwap', function (e) {
