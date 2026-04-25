@@ -250,6 +250,28 @@ document.addEventListener('htmx:afterSwap', function (e) {
     if (e.target.id === 'detalhe-panel') {
         var detail = e.target.querySelector('[data-imovel-id]');
         if (!detail) return;
+
+        e.target.classList.remove('hidden');
+
+        if (window.innerWidth < 768) {
+            // Mobile: overlay full-screen
+            e.target.classList.add('fixed', 'inset-0', 'z-50', 'bg-white', 'overflow-y-auto');
+            e.target.classList.remove('w-96', 'shrink-0');
+            if (!e.target.querySelector('.mobile-back-btn')) {
+                var backBtn = document.createElement('button');
+                backBtn.className = 'mobile-back-btn flex items-center gap-1 text-sm text-blue-600 px-3 pt-3 pb-0';
+                backBtn.textContent = '← Voltar à lista';
+                var _panel = e.target;
+                backBtn.onclick = function () {
+                    _panel.classList.add('hidden');
+                    _panel.classList.remove('fixed', 'inset-0', 'z-50', 'bg-white', 'overflow-y-auto');
+                    _panel.classList.add('w-96', 'shrink-0');
+                    _panel.innerHTML = '';
+                };
+                e.target.insertBefore(backBtn, e.target.firstChild);
+            }
+        }
+
         var id = detail.getAttribute('data-imovel-id');
         var status = detail.getAttribute('data-status');
         var row = document.getElementById('imovel-' + id);
